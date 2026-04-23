@@ -1,0 +1,25 @@
+meta {
+  name: getUserDetail
+  type: graphql
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:graphql {
+  query {
+    getUserDetail(id: "018f6b7a-0003-7000-8000-000000000001") {
+      id username firstName lastName fullName email phone
+      roleCode roleName projectName status
+      createdAt updatedAt deletedAt createdBy updatedBy
+    }
+  }
+}

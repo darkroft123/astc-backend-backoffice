@@ -1,0 +1,21 @@
+meta {
+  name: deleteUser
+  type: graphql
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:graphql {
+  mutation {
+    deleteUser(input: { id: "REPLACE_WITH_USER_ID" })
+  }
+}

@@ -1,0 +1,27 @@
+meta {
+  name: editUser
+  type: graphql
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:graphql {
+  mutation {
+    editUser(input: {
+      id: "REPLACE_WITH_USER_ID"
+      phone: "+0987654321"
+      status: "INACTIVE"
+    }) {
+      id username status phone
+    }
+  }
+}
