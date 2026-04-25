@@ -1,15 +1,15 @@
 package com.backoffice.backoffice.application.usecase;
 
 import com.backoffice.backoffice.application.in.EditUserUseCase;
-import com.backoffice.backoffice.domain.entity.UserEntity;
 import com.backoffice.backoffice.domain.model.User;
+import com.backoffice.backoffice.domain.entity.UserEntity;
 import com.backoffice.backoffice.infrastructure.repository.UserRepository;
-import com.backoffice.backoffice.application.usecase.UserMapper;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -28,19 +28,43 @@ public class EditUserUseCaseImpl implements EditUserUseCase {
             throw new RuntimeException("User not found");
         }
 
-        if (user.username != null) entity.username = user.username;
-        if (user.email != null) entity.email = user.email;
-        if (user.firstName != null) entity.firstName = user.firstName;
-        if (user.lastName != null) entity.lastName = user.lastName;
-        if (user.phone != null) entity.phone = user.phone;
-        if (user.avatarUrl != null) entity.avatarUrl = user.avatarUrl;
+        if (user.getUsername() != null)
+            entity.setUsername(user.getUsername());
 
-        if (user.status != null) {
-            entity.status = user.status.name();
-        }
+        if (user.getFirstName() != null)
+            entity.setFirstName(user.getFirstName());
 
-        userRepository.save(entity);
+        if (user.getLastName() != null)
+            entity.setLastName(user.getLastName());
 
-        return UserMapper.toDomain(entity);
+        if (user.getEmail() != null)
+            entity.setEmail(user.getEmail());
+
+        if (user.getPhone() != null)
+            entity.setPhone(user.getPhone());
+
+        if (user.getAvatarUrl() != null)
+            entity.setAvatarUrl(user.getAvatarUrl());
+
+        if (user.getRoleId() != null)
+            entity.setRoleId(user.getRoleId());
+
+        entity.setUpdatedAt(LocalDateTime.now());
+
+        return toDomain(entity);
+    }
+
+    private User toDomain(UserEntity e) {
+        User u = new User();
+        u.setId(e.getId());
+        u.setUsername(e.getUsername());
+        u.setEmail(e.getEmail());
+        u.setFirstName(e.getFirstName());
+        u.setLastName(e.getLastName());
+        u.setFullName(e.getFullName());
+        u.setPhone(e.getPhone());
+        u.setAvatarUrl(e.getAvatarUrl());
+        u.setRoleId(e.getRoleId());
+        return u;
     }
 }

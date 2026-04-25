@@ -3,16 +3,13 @@ package com.backoffice.backoffice.infrastructure.controller.graphql;
 import com.backoffice.backoffice.application.in.*;
 import com.backoffice.backoffice.domain.model.User;
 import com.backoffice.backoffice.infrastructure.controller.graphql.dto.*;
-import com.backoffice.backoffice.infrastructure.sender.S3Service;
 
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.annotation.security.RolesAllowed;
 
 import org.eclipse.microprofile.graphql.*;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
-import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,109 +22,132 @@ public class BackofficeGraphQLResource {
     @Inject GetUserDetailUseCase getUserDetailUseCase;
     @Inject EditUserUseCase editUserUseCase;
     @Inject DeleteUserUseCase deleteUserUseCase;
-    @Inject LoginUseCase loginUseCase;
-
-    @Inject S3Service s3Service;
-    @Inject JsonWebToken jwt;
 
     // =========================
-    // CREATE USER (PUBLIC)
+    // CREATE USER
     // =========================
     @Mutation
     public UserOutput createUser(CreateUserInput input) {
 
         validateCreateUser(input);
 
-        User user = new User();
-        user.username = input.username;
-        user.firstName = input.firstName;
-        user.lastName = input.lastName;
-        user.email = input.email;
-        user.password = input.password;
-        user.phone = input.phone;
-        user.roleId = UUID.fromString(input.roleId);
+        User user = mapToDomain(input);
 
-        return UserOutput.from(createUserUseCase.execute(user));
+        UUID id = createUserUseCase.execute(user);
+
+        user.setId(id);
+
+        return UserOutput.fromDomain(user);
     }
 
     // =========================
-    // LOGIN (PUBLIC)
+    // LIST USERS
     // =========================
-    @Mutation
-    public LoginOutput login(LoginInput input) {
-        String token = loginUseCase.execute(input.email, input.password);
-        return new LoginOutput(token);
-    }
-
-    // =========================
-    // USERS (ADMIN)
-    // =========================
-    @Query
-    @RolesAllowed("ADMIN")
+    @Query("ListUsers")
+    // @RolesAllowed({"admin"})
     public List<UserOutput> listUsers() {
+
         return listUsersUseCase.execute()
                 .stream()
-                .map(UserOutput::from)
+                .map(UserOutput::fromDomain)
                 .toList();
     }
 
     // =========================
-    // GET USER (ADMIN)
+    // GET USER DETAIL
     // =========================
-    @Query
-    @RolesAllowed("ADMIN")
+    @Query("GetUser")
+    @RolesAllowed({"admin"})
     public UserOutput getUser(@Name("id") String id) {
-        return UserOutput.from(
-                getUserDetailUseCase.execute(UUID.fromString(id))
-        );
+
+        User user = getUserDetailUseCase.execute(UUID.fromString(id));
+
+        return UserOutput.fromDomain(user);
     }
 
     // =========================
-    // EDIT USER (ADMIN)
+    // EDIT USER
     // =========================
     @Mutation
-    @RolesAllowed("ADMIN")
+    @RolesAllowed({"admin"})
     public UserOutput editUser(
             @Name("id") String id,
             @Name("input") EditUserInput input) {
 
-        User user = new User();
-        user.username = input.username;
-        user.firstName = input.firstName;
-        user.lastName = input.lastName;
-        user.email = input.email;
-        user.phone = input.phone;
+        User user = mapToDomain(input);
 
-        user.roleId = input.roleId != null
-                ? UUID.fromString(input.roleId)
-                : null;
+        User updated = editUserUseCase.execute(UUID.fromString(id), user);
 
-        return UserOutput.from(
-                editUserUseCase.execute(UUID.fromString(id), user)
-        );
+        return UserOutput.fromDomain(updated);
     }
 
     // =========================
-    // DELETE USER (ADMIN)
+    // DELETE USER
     // =========================
     @Mutation
-    @RolesAllowed("ADMIN")
+    @RolesAllowed({"admin"})
     public boolean deleteUser(@Name("id") String id) {
+
         return deleteUserUseCase.execute(UUID.fromString(id));
     }
 
+    // =========================
+    // MAPPERS
+    // =========================
+    private User mapToDomain(CreateUserInput input) {
+
+        User user = new User();
+
+        user.setUsername(input.getUsername());
+        user.setFirstName(input.getFirstName());
+        user.setLastName(input.getLastName());
+        user.setEmail(input.getEmail());
+        user.setPhone(input.getPhone());
+        user.setPassword(input.getPassword());
+
+        if (input.getRoleId() != null) {
+            user.setRoleId(UUID.fromString(input.getRoleId()));
+        }
+
+        return user;
+    }
+
+    private User mapToDomain(EditUserInput input) {
+
+        User user = new User();
+
+        user.setUsername(input.getUsername());
+        user.setFirstName(input.getFirstName());
+        user.setLastName(input.getLastName());
+        user.setEmail(input.getEmail());
+        user.setPhone(input.getPhone());
+
+        if (input.getRoleId() != null) {
+            user.setRoleId(UUID.fromString(input.getRoleId()));
+        }
+
+        return user;
+    }
+
+    // =========================
+    // VALIDATION
+    // =========================
     private void validateCreateUser(CreateUserInput input) {
 
-        if (input == null)
+        if (input == null) {
             throw new IllegalArgumentException("Input requerido");
+        }
 
-        if (input.email == null || input.email.isBlank())
+        if (input.getEmail() == null || input.getEmail().isBlank()) {
             throw new IllegalArgumentException("Email requerido");
+        }
 
-        if (input.password == null || input.password.isBlank())
-            throw new IllegalArgumentException("Password requerido");
+        if (input.getUsername() == null || input.getUsername().isBlank()) {
+            throw new IllegalArgumentException("Username requerido");
+        }
 
-        if (input.roleId == null)
+        if (input.getRoleId() == null) {
             throw new IllegalArgumentException("Role requerido");
+        }
     }
 }

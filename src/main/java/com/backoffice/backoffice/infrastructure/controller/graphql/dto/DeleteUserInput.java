@@ -1,9 +1,9 @@
 package com.backoffice.backoffice.infrastructure.controller.graphql.dto;
 
-import org.eclipse.microprofile.graphql.Input;
-import org.eclipse.microprofile.graphql.NonNull;
-
-@Input("DeleteUserInput")
 public class DeleteUserInput {
-    public @NonNull String id;
+
+    private String id;
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 }

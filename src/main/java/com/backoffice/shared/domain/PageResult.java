@@ -2,13 +2,34 @@ package com.backoffice.shared.domain;
 
 import java.util.List;
 
-public record PageResult<T>(List<T> items, long totalCount, int page, int size) {
+public class PageResult<T> {
 
-    public int totalPages() {
-        return size > 0 ? (int) Math.ceil((double) totalCount / size) : 0;
+    private List<T> data;
+    private int page;
+    private int size;
+    private long total;
+
+    public PageResult(List<T> data, int page, int size, long total) {
+        this.data = data;
+        this.page = page;
+        this.size = size;
+        this.total = total;
     }
 
-    public boolean hasNextPage() {
-        return page < totalPages() - 1;
+    public List<T> getData() { return data; }
+    public int getPage() { return page; }
+    public int getSize() { return size; }
+    public long getTotal() { return total; }
+
+    public long getTotalPages() {
+        return (long) Math.ceil((double) total / size);
+    }
+
+    public boolean isHasNext() {
+        return page * size < total;
+    }
+
+    public boolean isHasPrevious() {
+        return page > 0;
     }
 }

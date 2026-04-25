@@ -3,44 +3,47 @@ package com.backoffice.backoffice.application.usecase;
 import com.backoffice.backoffice.application.in.UploadUserAvatarUseCase;
 import com.backoffice.backoffice.domain.entity.UserEntity;
 import com.backoffice.backoffice.infrastructure.repository.UserRepository;
-import com.backoffice.backoffice.infrastructure.sender.S3Service;
+import com.backoffice.backoffice.infrastructure.storage.MinioStorageAdapter;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @ApplicationScoped
 public class UploadUserAvatarUseCaseImpl implements UploadUserAvatarUseCase {
 
     @Inject
-    UserRepository userRepository;
+    MinioStorageAdapter storage;
 
     @Inject
-    S3Service s3Service;
+    UserRepository userRepository;
 
     @Override
     @Transactional
     public String execute(UUID userId, InputStream file, long size) {
 
-        // 🔹 1. Validar usuario
         UserEntity user = userRepository.findById(userId);
 
         if (user == null) {
             throw new RuntimeException("User not found");
         }
 
-        // 🔹 2. Subir archivo (sobrescribe avatar)
-        String url = s3Service.uploadUserAvatar(userId, file, size);
+        String fileId = UUID.randomUUID().toString();
 
-        // 🔹 3. Guardar URL en BD
-        user.avatarUrl = url;
+        String path = "document/private/user/" 
+                + userId 
+                + "/photo/" 
+                + fileId;
 
-        userRepository.save(user);
+        String url = storage.upload(path, file, size);
 
-        // 🔹 4. Retornar URL
+        user.setAvatarUrl(url);
+        user.setUpdatedAt(LocalDateTime.now());
+
         return url;
     }
 }

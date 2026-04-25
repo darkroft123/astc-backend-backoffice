@@ -2,11 +2,12 @@ package com.backoffice.backoffice.infrastructure.messaging;
 
 import com.backoffice.backoffice.domain.entity.OutboxEventEntity;
 import com.backoffice.backoffice.infrastructure.repository.OutboxEventRepository;
-import io.quarkus.scheduler.Scheduled;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.jboss.logging.Logger;
+
+import io.quarkus.scheduler.Scheduled;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,31 +15,35 @@ import java.util.List;
 @ApplicationScoped
 public class OutboxEventProcessor {
 
-    private static final Logger LOG = Logger.getLogger(OutboxEventProcessor.class);
-
     @Inject
-    OutboxEventRepository outboxEventRepository;
+    OutboxEventRepository repository;
 
-    @Scheduled(every = "10s")
+    // @Inject
+    // RabbitMQPublisher publisher;
+
+    /**
+     * 🔥 Se ejecuta automáticamente cada 5 segundos
+     */
+    @Scheduled(every = "5s")
     @Transactional
-    void processOutbox() {
+    void processEvents() {
 
-        // ⚠️ ESTE MÉTODO DEBE EXISTIR EN TU REPOSITORY
-        List<OutboxEventEntity> events = outboxEventRepository.findUnprocessed(50);
+        List<OutboxEventEntity> events = repository.findUnprocessed(50);
 
         for (OutboxEventEntity event : events) {
 
-            LOG.infof(
-                    "Publishing outbox event: %s / %s / %s",
-                    event.eventType,
-                    event.aggregateType,
-                    event.aggregateId);
+            try {
+                // 🔥 Enviar a RabbitMQ REAL
+                // publisher.publish(event.getPayload());
 
-            // TODO: publish to RabbitMQ / Kafka
+                // 🔥 marcar como procesado
+                event.setProcessedAt(LocalDateTime.now());
 
-            event.processedAt = LocalDateTime.now();
+            } catch (Exception e) {
 
-            outboxEventRepository.save(event);
+                // 🔥 importante: no marcar si falla
+                System.err.println("❌ Error enviando evento: " + event.getId());
+            }
         }
     }
 }

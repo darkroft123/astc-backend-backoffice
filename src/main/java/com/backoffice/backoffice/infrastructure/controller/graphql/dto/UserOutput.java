@@ -1,38 +1,110 @@
 package com.backoffice.backoffice.infrastructure.controller.graphql.dto;
 
 import com.backoffice.backoffice.domain.model.User;
-import org.eclipse.microprofile.graphql.Type;
 
-@Type("UserOutput")
+import java.util.UUID;
+
 public class UserOutput {
 
-    public String id;
-    public String username;
-    public String firstName;
-    public String lastName;
-    public String fullName;
-    public String email;
-    public String phone;
-    public String roleId;
-    public String status;
+    private UUID id;
+    private String username;
+    private String email;
+    private String firstName;
+    private String lastName;
+    private String fullName;
+    private String phone;
+    private String avatarUrl;
+    private UUID roleId;
 
-    public static UserOutput from(User u) {
-        UserOutput o = new UserOutput();
+    // MAP DOMAIN → DTO
+    public static UserOutput fromDomain(User user) {
 
-        o.id = u.id != null ? u.id.toString() : null;
-        o.username = u.username;
-        o.firstName = u.firstName;
-        o.lastName = u.lastName;
+        UserOutput dto = new UserOutput();
 
-        // ⚠️ fullName NO viene del domain model
-        o.fullName = (u.firstName != null ? u.firstName : "") + " " +
-                     (u.lastName != null ? u.lastName : "");
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        dto.setEmail(user.getEmail());
+        dto.setFirstName(user.getFirstName());
+        dto.setLastName(user.getLastName());
+        dto.setFullName(user.getFullName());
+        dto.setPhone(user.getPhone());
+        dto.setAvatarUrl(user.getAvatarUrl());
+        dto.setRoleId(user.getRoleId());
 
-        o.email = u.email;
-        o.phone = u.phone;
-        o.roleId = u.roleId != null ? u.roleId.toString() : null;
-        o.status = u.status != null ? u.status.name() : null;
+        return dto;
+    }
 
-        return o;
+    // GETTERS & SETTERS
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public UUID getRoleId() {
+        return roleId;
+    }
+
+    public void setRoleId(UUID roleId) {
+        this.roleId = roleId;
     }
 }

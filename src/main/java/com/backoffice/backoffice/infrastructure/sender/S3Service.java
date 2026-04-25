@@ -22,6 +22,7 @@ public class S3Service {
     private static final String BUCKET = "document";
 
     // 🔥 AVATAR ÚNICO (SE SOBREESCRIBE)
+    
     public String uploadUserAvatar(UUID userId, InputStream inputStream, long size) {
 
         String key = "private/user/" + userId + "/photo/avatar.jpg";

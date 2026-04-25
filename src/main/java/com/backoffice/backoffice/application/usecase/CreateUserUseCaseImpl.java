@@ -1,10 +1,12 @@
 package com.backoffice.backoffice.application.usecase;
 
 import com.backoffice.backoffice.application.in.CreateUserUseCase;
-import com.backoffice.backoffice.domain.entity.UserEntity;
 import com.backoffice.backoffice.domain.model.User;
-import com.backoffice.backoffice.domain.model.UserStatus;
+import com.backoffice.backoffice.domain.entity.UserEntity;
 import com.backoffice.backoffice.infrastructure.repository.UserRepository;
+import com.backoffice.backoffice.infrastructure.repository.OutboxEventRepository;
+import com.backoffice.backoffice.domain.entity.OutboxEventEntity;
+import com.backoffice.shared.util.UuidGenerator;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -21,55 +23,59 @@ public class CreateUserUseCaseImpl implements CreateUserUseCase {
     @Inject
     UserRepository userRepository;
 
+    @Inject
+    OutboxEventRepository outboxRepository;
+
     @Override
-@Transactional
-public User execute(User user) {
+    @Transactional
+    public UUID execute(User user) {
 
-    if (user == null)
-        throw new IllegalArgumentException("User cannot be null");
+        // 1. Generar ID
+        UUID id = UUID.randomUUID();
 
-    if (isBlank(user.email))
-        throw new IllegalArgumentException("Email is required");
+        // 2. MAP DOMAIN -> ENTITY
+        UserEntity entity = new UserEntity();
+        entity.setId(id);
+        entity.setUsername(user.getUsername());
+        entity.setEmail(user.getEmail());
+        entity.setFirstName(user.getFirstName());
+        entity.setLastName(user.getLastName());
+        entity.setFullName(
+            ((user.getFirstName() != null ? user.getFirstName() : "") + " " +
+            (user.getLastName() != null ? user.getLastName() : "")).trim()
+        );
+        entity.setPhone(user.getPhone());
+        entity.setAvatarUrl(user.getAvatarUrl());
+        entity.setRoleId(user.getRoleId());
+        entity.setCreatedAt(LocalDateTime.now());
 
-    if (isBlank(user.username))
-        throw new IllegalArgumentException("Username is required");
 
-    if (isBlank(user.password))
-        throw new IllegalArgumentException("Password is required");
+        // 🔥 FIX 3: HASH PASSWORD AQUÍ
+        entity.setPasswordHash(
+            BCrypt.hashpw(user.getPassword(), BCrypt.gensalt())
+        );
+        // 3. Guardar usuario
+        userRepository.persist(entity);
 
-    if (user.roleId == null)
-        throw new IllegalArgumentException("Role is required");
+        // 4. OUTBOX EVENT (IMPORTANTE)
+        OutboxEventEntity event = new OutboxEventEntity();
+        event.setId(UuidGenerator.generate());
+        event.setAggregateType("USER");
+        event.setAggregateId(id);
+        event.setEventType("USER_CREATED");
+        event.setPayload(buildPayload(entity));
+        event.setCreatedAt(LocalDateTime.now());
 
-    if (user.id == null)
-        user.id = UUID.randomUUID();
+        outboxRepository.persist(event);
 
-    if (user.status == null)
-        user.status = UserStatus.ACTIVE;
-
-    // 🔥 HASH PASSWORD AQUÍ
-    String hashed = BCrypt.hashpw(user.password, BCrypt.gensalt());
-
-    UserEntity entity = UserMapper.toEntity(user);
-
-    entity.passwordHash = hashed;
-
-    entity.fullName = buildFullName(user.firstName, user.lastName);
-
-    entity.createdAt = LocalDateTime.now();
-    entity.updatedAt = LocalDateTime.now();
-
-    userRepository.save(entity);
-
-    return UserMapper.toDomain(entity);
-}
-
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+        // 5. RETURN ID
+        return id;
     }
 
-    private String buildFullName(String firstName, String lastName) {
-        return (firstName != null ? firstName : "") +
-               " " +
-               (lastName != null ? lastName : "");
+    private String buildPayload(UserEntity u) {
+        return "{ " +
+                "\"id\": \"" + u.getId() + "\"," +
+                "\"email\": \"" + u.getEmail() + "\"" +
+                " }";
     }
 }

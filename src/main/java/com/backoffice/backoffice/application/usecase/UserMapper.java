@@ -2,64 +2,68 @@ package com.backoffice.backoffice.application.usecase;
 
 import com.backoffice.backoffice.domain.entity.UserEntity;
 import com.backoffice.backoffice.domain.model.User;
-import com.backoffice.backoffice.domain.model.UserStatus;
-
-import java.util.UUID;
+import org.mindrot.jbcrypt.BCrypt;
 
 public class UserMapper {
 
+    // =========================
+    // ENTITY → DOMAIN
+    // =========================
     public static User toDomain(UserEntity e) {
         if (e == null) return null;
 
         User u = new User();
 
-        u.id = e.id;
-        u.username = e.username;
-        u.email = e.email;
+        u.setId(e.getId());
+        u.setUsername(e.getUsername());
+        u.setEmail(e.getEmail());
+        u.setFirstName(e.getFirstName());
+        u.setLastName(e.getLastName());
 
-        u.firstName = e.firstName;
-        u.lastName = e.lastName;
-
-        // 🔥 FIX: calcular en vez de depender del entity
-        u.fullName = buildFullName(e.firstName, e.lastName);
-
-        u.phone = e.phone;
-        u.avatarUrl = e.avatarUrl;
-        u.roleId = e.roleId;
-
-        u.status = e.status != null
-                ? UserStatus.valueOf(e.status)
-                : UserStatus.ACTIVE;
+        u.setPhone(e.getPhone());
+        u.setAvatarUrl(e.getAvatarUrl());
+        u.setRoleId(e.getRoleId());
 
         return u;
     }
 
+    // =========================
+    // DOMAIN → ENTITY
+    // =========================
     public static UserEntity toEntity(User u) {
         if (u == null) return null;
 
         UserEntity e = new UserEntity();
 
-        e.id = u.id != null ? u.id : UUID.randomUUID();
-        e.username = u.username;
-        e.email = u.email;
+        e.setId(u.getId());
 
-        e.firstName = u.firstName;
-        e.lastName = u.lastName;
+        e.setUsername(u.getUsername());
+        e.setEmail(u.getEmail());
 
-        // 🔥 FIX: siempre recalcular
-        e.fullName = buildFullName(u.firstName, u.lastName);
+        e.setFirstName(u.getFirstName());
+        e.setLastName(u.getLastName());
 
-        e.phone = u.phone;
-        e.avatarUrl = u.avatarUrl;
-        e.roleId = u.roleId;
+        e.setFullName(buildFullName(u.getFirstName(), u.getLastName()));
 
-        e.status = u.status != null ? u.status.name() : "ACTIVE";
+        e.setPhone(u.getPhone());
+        e.setAvatarUrl(u.getAvatarUrl());
+        e.setRoleId(u.getRoleId());
 
         return e;
     }
 
+    // =========================
+    // PASSWORD HASH (NUEVO)
+    // =========================
+    public static String hashPassword(String plainPassword) {
+        if (plainPassword == null) return null;
+        return BCrypt.hashpw(plainPassword, BCrypt.gensalt());
+    }
+
     private static String buildFullName(String first, String last) {
-        return ((first != null ? first : "") + " " +
-                (last != null ? last : "")).trim();
+        if (first == null && last == null) return null;
+        if (first == null) return last;
+        if (last == null) return first;
+        return first + " " + last;
     }
 }
