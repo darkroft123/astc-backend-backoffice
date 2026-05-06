@@ -5,7 +5,7 @@ services:
   backoffice-service:
     build:
       context: .
-    container_name: astc-cn-backend-backoffice-service
+    container_name: astc-cn-backend-backoffice-service-2
     ports:
       - "8084:8082"
     env_file:
@@ -15,10 +15,11 @@ services:
         condition: service_healthy
     networks:
       - astc-network
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
-    container_name: astc-backoffice-postgres
+    container_name: astc-backoffice-postgres-2
     environment:
       POSTGRES_DB: backoffice_db
       POSTGRES_USER: backoffice_user
