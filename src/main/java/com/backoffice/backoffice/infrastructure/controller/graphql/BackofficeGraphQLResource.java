@@ -105,12 +105,45 @@ public class BackofficeGraphQLResource {
         user.setPhone(input.getPhone());
         user.setPassword(input.getPassword());
 
-        if (input.getRoleId() != null) {
-            user.setRoleId(UUID.fromString(input.getRoleId()));
-        }
+if (input.getRoleId() != null) {
+
+    String roleInput = input.getRoleId();
+
+    UUID roleUuid;
+
+    try {
+        // Caso 1: es UUID normal
+        roleUuid = UUID.fromString(roleInput);
+
+    } catch (IllegalArgumentException e) {
+        // Caso 2: viene como nombre (ADMIN, TEAM_MEMBER, etc)
+
+        roleUuid = resolveRoleByName(roleInput);
+    }
+
+    user.setRoleId(roleUuid);
+}
 
         return user;
     }
+
+    private UUID resolveRoleByName(String roleName) {
+
+    return switch (roleName.toUpperCase()) {
+
+        case "ADMIN" ->
+            UUID.fromString("11111111-1111-1111-1111-111111111111");
+
+        case "TEAM_MEMBER" ->
+            UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+        case "PROJECT_MANAGER" ->
+            UUID.fromString("33333333-3333-3333-3333-333333333333");
+
+        default ->
+            throw new IllegalArgumentException("Rol inválido: " + roleName);
+    };
+}
 
     private User mapToDomain(EditUserInput input) {
 

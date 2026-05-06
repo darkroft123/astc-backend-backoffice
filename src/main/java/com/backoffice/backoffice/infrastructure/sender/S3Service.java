@@ -1,86 +1,108 @@
 package com.backoffice.backoffice.infrastructure.sender;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
-import java.time.Duration;
 import java.io.InputStream;
-import java.util.UUID;
+import java.net.URI;
+import java.time.Duration;
 
 @ApplicationScoped
 public class S3Service {
 
-    @Inject
-    S3Client s3;
+    private final S3Client s3;
+    private final S3Presigner presigner;
 
-    private static final String BUCKET = "document";
+    @ConfigProperty(name = "storage.bucket.name")
+    String bucketName;
 
-    // 🔥 AVATAR ÚNICO (SE SOBREESCRIBE)
-    
-    public String uploadUserAvatar(UUID userId, InputStream inputStream, long size) {
+    public S3Service(
+            @ConfigProperty(name = "quarkus.s3.aws.credentials.static-provider.access-key-id") String accessKey,
+            @ConfigProperty(name = "quarkus.s3.aws.credentials.static-provider.secret-access-key") String secretKey,
+            @ConfigProperty(name = "quarkus.s3.endpoint-override") String endpoint,
+            @ConfigProperty(name = "quarkus.s3.aws.region") String region
+    ) {
+        // Cliente S3 para upload y delete
+        this.s3 = S3Client.builder()
+                .endpointOverride(URI.create(endpoint))
+                .credentialsProvider(
+                        StaticCredentialsProvider.create(
+                                AwsBasicCredentials.create(accessKey, secretKey)
+                        )
+                )
+                .region(Region.of(region))
+                .httpClientBuilder(UrlConnectionHttpClient.builder())
+                .forcePathStyle(true)
+                .build();
 
-        String key = "private/user/" + userId + "/photo/avatar.jpg";
-
-        uploadFile(key, inputStream, size, "image/jpeg");
-
-        return buildUrl(key);
+        // Presigner (sin httpClientBuilder)
+        this.presigner = S3Presigner.builder()
+                .endpointOverride(URI.create(endpoint))
+                .credentialsProvider(
+                        StaticCredentialsProvider.create(
+                                AwsBasicCredentials.create(accessKey, secretKey)
+                        )
+                )
+                .region(Region.of(region))
+                .build();   // ← Aquí no se pone httpClientBuilder
     }
 
-    // 🔥 JUSTIFICANTES (MULTIPLES)
-    public String uploadJustification(UUID userId, InputStream inputStream, long size) {
+    public void uploadObject(String objectName, InputStream data, long size, String contentType) {
+        try {
+            byte[] bytes = data.readAllBytes();
 
-        String fileId = UUID.randomUUID().toString();
+            s3.putObject(
+                b -> b.bucket(bucketName)
+                      .key(objectName)
+                      .contentType(contentType != null ? contentType : "image/jpeg"),
+                RequestBody.fromBytes(bytes)
+            );
 
-        String key = "private/user/" + userId + "/justifications/" + fileId + ".pdf";
+            System.out.println("✅ Archivo subido correctamente: " + objectName + " (" + bytes.length + " bytes)");
 
-        uploadFile(key, inputStream, size, "application/pdf");
-
-        return buildUrl(key);
-    }
-
-    // 🔧 MÉTODO BASE
-    private void uploadFile(String key, InputStream inputStream, long size, String contentType) {
-
-        if (inputStream == null) {
-            throw new RuntimeException("File is null");
+        } catch (Exception e) {
+            throw new RuntimeException("❌ Error al subir a S3: " + objectName, e);
         }
-
-        s3.putObject(
-                PutObjectRequest.builder()
-                        .bucket(BUCKET)
-                        .key(key)
-                        .contentLength(size)
-                        .contentType(contentType)
-                        .build(),
-                software.amazon.awssdk.core.sync.RequestBody.fromInputStream(inputStream, size));
     }
 
-    // 🔧 URL FINAL
-    private String buildUrl(String key) {
-        return "http://localhost:9000/" + BUCKET + "/" + key;
+    public void deleteObject(String objectName) {
+        try {
+            s3.deleteObject(b -> b.bucket(bucketName).key(objectName));
+            System.out.println("🗑️ Archivo eliminado: " + objectName);
+        } catch (Exception e) {
+            System.out.println("⚠️ No se pudo eliminar: " + objectName);
+        }
     }
 
-    @Inject
-    S3Presigner presigner;
+    // 🔥 Presigned URL para mostrar la imagen en React
+    public String generatePresignedUrl(String objectName, int expiryMinutes) {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectName)
+                    .build();
 
-    public String generatePresignedUrl(String key) {
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(expiryMinutes))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
 
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(BUCKET)
-                .key(key)
-                .build();
+            String url = presigner.presignGetObject(presignRequest).url().toString();
+            System.out.println("🔗 Presigned URL generada: " + objectName);
+            return url;
 
-        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(5)) // 🔥 expira en 5 min
-                .getObjectRequest(getObjectRequest)
-                .build();
-
-        return presigner.presignGetObject(presignRequest).url().toString();
+        } catch (Exception e) {
+            throw new RuntimeException("❌ Error generando presigned URL para: " + objectName, e);
+        }
     }
 }

@@ -45,10 +45,6 @@
             <artifactId>quarkus-arc</artifactId>
         </dependency>
 
-        <dependency>
-    <groupId>io.quarkus</groupId>
-    <artifactId>quarkus-rest</artifactId>
-</dependency>
 
 
         <!-- GRAPHQL -->
@@ -87,6 +83,8 @@
             <version>2.15.0</version>
         </dependency>
 
+        
+
         <!-- AWS SDK -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
@@ -106,6 +104,17 @@
             <artifactId>lombok</artifactId>
             <version>1.18.36</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- RESTEASY (VERSIÓN ANTIGUA) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy-multipart</artifactId>
         </dependency>
 
         <dependency>
@@ -128,6 +137,14 @@
 
     <build>
         <plugins>
+        <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+            <release>21</release>
+        </configuration>
+    </plugin>
             <plugin>
     <groupId>io.quarkus</groupId>
     <artifactId>quarkus-maven-plugin</artifactId>

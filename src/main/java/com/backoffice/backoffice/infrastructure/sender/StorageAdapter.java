@@ -2,29 +2,31 @@ package com.backoffice.backoffice.infrastructure.sender;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.jboss.logging.Logger;
-import software.amazon.awssdk.services.s3.S3Client;
 
-/**
- * Adapter for S3/MinIO file storage.
- * Ready for future file upload features.
- */
+import java.io.InputStream;
+
 @ApplicationScoped
 public class StorageAdapter {
 
-    private static final Logger LOG = Logger.getLogger(StorageAdapter.class);
+    private final S3Service s3Service;
 
     @Inject
-    S3Client s3Client;
-
-    public String uploadFile(String bucket, String key, byte[] data, String contentType) {
-        // TODO: implement when file uploads are needed
-        LOG.infof("StorageAdapter.uploadFile called for bucket=%s key=%s (not yet implemented)", bucket, key);
-        throw new UnsupportedOperationException("File upload not yet implemented");
+    public StorageAdapter(S3Service s3Service) {
+        this.s3Service = s3Service;
     }
 
-    public byte[] downloadFile(String bucket, String key) {
-        LOG.infof("StorageAdapter.downloadFile called for bucket=%s key=%s (not yet implemented)", bucket, key);
-        throw new UnsupportedOperationException("File download not yet implemented");
+    public void uploadAvatar(String objectName, InputStream data, long size, String contentType) {
+        // 🔥 eliminar antes (opcional pero recomendado)
+        s3Service.deleteObject(objectName);
+
+        s3Service.uploadObject(objectName, data, size, contentType);
+    }
+
+    public String getAvatarPresignedUrl(String objectName) {
+        return s3Service.generatePresignedUrl(objectName, 60); // 60 minutos (ajusta según necesites)
+    }
+
+    public void deleteAvatar(String objectName) {
+        s3Service.deleteObject(objectName);
     }
 }
