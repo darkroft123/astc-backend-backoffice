@@ -1,9 +1,10 @@
 package com.backoffice.backoffice.infrastructure.controller.graphql.dto;
 
-import com.backoffice.backoffice.domain.model.User;
+import com.backoffice.backoffice.domain.model.User;import io.smallrye.graphql.api.federation.Key;
+import io.smallrye.graphql.api.federation.FieldSet;
 
 import java.util.UUID;
-
+@Key(fields = @FieldSet("id"))
 public class UserOutput {
 
     private UUID id;
@@ -16,7 +17,6 @@ public class UserOutput {
     private String avatarUrl;
     private UUID roleId;
 
-    // MAP DOMAIN → DTO
     public static UserOutput fromDomain(User user) {
 
         UserOutput dto = new UserOutput();
@@ -33,8 +33,6 @@ public class UserOutput {
 
         return dto;
     }
-
-    // GETTERS & SETTERS
 
     public UUID getId() {
         return id;

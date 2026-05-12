@@ -45,7 +45,11 @@
             <artifactId>quarkus-arc</artifactId>
         </dependency>
 
-
+            <!-- Flyway -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-flyway</artifactId>
+        </dependency>
 
         <!-- GRAPHQL -->
         <dependency>
