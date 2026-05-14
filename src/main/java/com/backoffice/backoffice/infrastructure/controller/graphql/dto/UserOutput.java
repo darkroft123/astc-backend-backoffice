@@ -1,7 +1,8 @@
 package com.backoffice.backoffice.infrastructure.controller.graphql.dto;
 
-import com.backoffice.backoffice.domain.model.User;import io.smallrye.graphql.api.federation.Key;
+import com.backoffice.backoffice.domain.model.User;
 import io.smallrye.graphql.api.federation.FieldSet;
+import io.smallrye.graphql.api.federation.Key;
 
 import java.util.UUID;
 @Key(fields = @FieldSet("id"))

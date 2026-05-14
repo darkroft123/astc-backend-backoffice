@@ -4,11 +4,12 @@ WORKDIR /app
 
 COPY pom.xml .
 
-RUN mvn dependency:go-offline
+# opcional pero más seguro en Docker
+RUN mvn -B -DskipTests dependency:go-offline
 
 COPY src ./src
 
-RUN mvn clean package -DskipTests -Dquarkus.package.jar.type=uber-jar
+RUN mvn -B clean package -DskipTests -Dquarkus.package.jar.type=uber-jar
 
 FROM registry.access.redhat.com/ubi8/openjdk-21-runtime:1.20
 
