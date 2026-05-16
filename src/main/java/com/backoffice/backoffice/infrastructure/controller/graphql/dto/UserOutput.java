@@ -5,7 +5,11 @@ import io.smallrye.graphql.api.federation.FieldSet;
 import io.smallrye.graphql.api.federation.Key;
 
 import java.util.UUID;
+import org.eclipse.microprofile.graphql.Type;
+
+@Type
 @Key(fields = @FieldSet("id"))
+
 public class UserOutput {
 
     private UUID id;

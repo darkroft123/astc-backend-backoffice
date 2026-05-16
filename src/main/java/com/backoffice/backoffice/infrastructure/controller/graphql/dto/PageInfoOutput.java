@@ -1,5 +1,7 @@
 package com.backoffice.backoffice.infrastructure.controller.graphql.dto;
+import org.eclipse.microprofile.graphql.Type;
 
+@Type
 public class PageInfoOutput {
 
     private int page;

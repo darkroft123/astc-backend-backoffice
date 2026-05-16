@@ -3,7 +3,9 @@ package com.backoffice.backoffice.infrastructure.controller.graphql.dto;
 import com.backoffice.backoffice.domain.model.User;
 
 import java.util.List;
+import org.eclipse.microprofile.graphql.Type;
 
+@Type
 public class ListUsersOutput {
 
     private List<UserOutput> data;
