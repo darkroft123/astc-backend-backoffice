@@ -3,12 +3,17 @@ package com.backoffice.backoffice.infrastructure.controller.graphql;
 import com.backoffice.backoffice.application.in.*;
 import com.backoffice.backoffice.domain.model.User;
 import com.backoffice.backoffice.infrastructure.controller.graphql.dto.*;
+import com.backoffice.backoffice.infrastructure.repository.RoleRepository;
+import com.backoffice.backoffice.domain.entity.RoleEntity;
 
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.graphql.*;
+
+import org.jboss.logging.Logger;
+import io.quarkus.security.identity.SecurityIdentity;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,25 +22,39 @@ import java.util.UUID;
 @ApplicationScoped
 public class BackofficeGraphQLResource {
 
+    private static final Logger LOG = Logger.getLogger(BackofficeGraphQLResource.class);
+
     @Inject CreateUserUseCase createUserUseCase;
     @Inject ListUsersUseCase listUsersUseCase;
     @Inject GetUserDetailUseCase getUserDetailUseCase;
     @Inject EditUserUseCase editUserUseCase;
     @Inject DeleteUserUseCase deleteUserUseCase;
 
+    @Inject RoleRepository roleRepository;
+
+    @Inject
+    SecurityIdentity identity;
+
     // =========================
     // CREATE USER
     // =========================
     @Mutation
+    @RolesAllowed({"ADMIN"})
     public UserOutput createUser(CreateUserInput input) {
+
+        LOG.info("🔥 ENTER createUser()");
+        LOG.info("👤 USER: " + identity.getPrincipal().getName());
+        LOG.info("🔐 ROLES: " + identity.getRoles());
 
         validateCreateUser(input);
 
-        User user = mapToDomain(input);
+        User user = mapCreate(input);
 
         UUID id = createUserUseCase.execute(user);
 
         user.setId(id);
+
+        LOG.info("✅ USER CREATED: " + id);
 
         return UserOutput.fromDomain(user);
     }
@@ -44,8 +63,13 @@ public class BackofficeGraphQLResource {
     // LIST USERS
     // =========================
     @Query("ListUsers")
-    // @RolesAllowed({"admin"})
+    @RolesAllowed({"ADMIN"})
     public List<UserOutput> listUsers() {
+
+        LOG.info("🔥 ENTER listUsers()");
+        LOG.info("👤 USER: " + identity.getPrincipal().getName());
+        LOG.info("🔐 ROLES: " + identity.getRoles());
+        LOG.info("🛡 ADMIN CHECK REQUIRED");
 
         return listUsersUseCase.execute()
                 .stream()
@@ -54,11 +78,13 @@ public class BackofficeGraphQLResource {
     }
 
     // =========================
-    // GET USER DETAIL
+    // GET USER
     // =========================
     @Query("GetUser")
-    @RolesAllowed({"admin"})
+    @RolesAllowed({"ADMIN"})
     public UserOutput getUser(@Name("id") String id) {
+
+        LOG.info("🔥 GET USER id: " + id);
 
         User user = getUserDetailUseCase.execute(UUID.fromString(id));
 
@@ -69,14 +95,18 @@ public class BackofficeGraphQLResource {
     // EDIT USER
     // =========================
     @Mutation
-    @RolesAllowed({"admin"})
+    @RolesAllowed({"ADMIN"})
     public UserOutput editUser(
             @Name("id") String id,
             @Name("input") EditUserInput input) {
 
-        User user = mapToDomain(input);
+        LOG.info("🔥 EDIT USER id: " + id);
+
+        User user = mapEdit(input);
 
         User updated = editUserUseCase.execute(UUID.fromString(id), user);
+
+        LOG.info("✅ USER UPDATED: " + id);
 
         return UserOutput.fromDomain(updated);
     }
@@ -85,16 +115,22 @@ public class BackofficeGraphQLResource {
     // DELETE USER
     // =========================
     @Mutation
-    @RolesAllowed({"admin"})
+    @RolesAllowed({"ADMIN"})
     public boolean deleteUser(@Name("id") String id) {
 
-        return deleteUserUseCase.execute(UUID.fromString(id));
+        LOG.info("🔥 DELETE USER id: " + id);
+
+        boolean result = deleteUserUseCase.execute(UUID.fromString(id));
+
+        LOG.info("🗑 DELETE RESULT: " + result);
+
+        return result;
     }
 
     // =========================
-    // MAPPERS
+    // MAPPER CREATE
     // =========================
-    private User mapToDomain(CreateUserInput input) {
+    private User mapCreate(CreateUserInput input) {
 
         User user = new User();
 
@@ -105,47 +141,17 @@ public class BackofficeGraphQLResource {
         user.setPhone(input.getPhone());
         user.setPassword(input.getPassword());
 
-if (input.getRoleId() != null) {
-
-    String roleInput = input.getRoleId();
-
-    UUID roleUuid;
-
-    try {
-        // Caso 1: es UUID normal
-        roleUuid = UUID.fromString(roleInput);
-
-    } catch (IllegalArgumentException e) {
-        // Caso 2: viene como nombre (ADMIN, TEAM_MEMBER, etc)
-
-        roleUuid = resolveRoleByName(roleInput);
-    }
-
-    user.setRoleId(roleUuid);
-}
+        if (input.getRoleId() != null) {
+            user.setRoleId(resolveRole(input.getRoleId()));
+        }
 
         return user;
     }
 
-    private UUID resolveRoleByName(String roleName) {
-
-    return switch (roleName.toUpperCase()) {
-
-        case "ADMIN" ->
-            UUID.fromString("11111111-1111-1111-1111-111111111111");
-
-        case "TEAM_MEMBER" ->
-            UUID.fromString("22222222-2222-2222-2222-222222222222");
-
-        case "PROJECT_MANAGER" ->
-            UUID.fromString("33333333-3333-3333-3333-333333333333");
-
-        default ->
-            throw new IllegalArgumentException("Rol inválido: " + roleName);
-    };
-}
-
-    private User mapToDomain(EditUserInput input) {
+    // =========================
+    // MAPPER EDIT
+    // =========================
+    private User mapEdit(EditUserInput input) {
 
         User user = new User();
 
@@ -156,10 +162,23 @@ if (input.getRoleId() != null) {
         user.setPhone(input.getPhone());
 
         if (input.getRoleId() != null) {
-            user.setRoleId(UUID.fromString(input.getRoleId()));
+            user.setRoleId(resolveRole(input.getRoleId()));
         }
 
         return user;
+    }
+
+    // =========================
+    // ROLE RESOLVER
+    // =========================
+    private UUID resolveRole(String roleInput) {
+
+        RoleEntity role = roleRepository.findByIdOrCode(roleInput)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Rol inválido: " + roleInput)
+                );
+
+        return role.getId();
     }
 
     // =========================

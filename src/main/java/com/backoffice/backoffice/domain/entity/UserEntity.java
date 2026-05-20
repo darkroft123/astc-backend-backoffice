@@ -36,8 +36,18 @@ public class UserEntity {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    // =========================
+    // FK directa (útil para inserts simples)
+    // =========================
     @Column(name = "role_id", nullable = false)
     private UUID roleId;
+
+    // =========================
+    // RELACIÓN REAL JPA (ESTO TE FALTABA)
+    // =========================
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "role_id", insertable = false, updatable = false)
+    private RoleEntity role;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -130,6 +140,14 @@ public class UserEntity {
 
     public void setRoleId(UUID roleId) {
         this.roleId = roleId;
+    }
+
+    public RoleEntity getRole() {
+        return role;
+    }
+
+    public void setRole(RoleEntity role) {
+        this.role = role;
     }
 
     public LocalDateTime getCreatedAt() {
