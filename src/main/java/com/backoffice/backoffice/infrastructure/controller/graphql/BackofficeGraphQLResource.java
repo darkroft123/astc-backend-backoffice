@@ -11,8 +11,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.graphql.*;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import org.jboss.logging.Logger;
+
 import io.quarkus.security.identity.SecurityIdentity;
 
 import java.util.List;
@@ -35,6 +37,9 @@ public class BackofficeGraphQLResource {
     @Inject
     SecurityIdentity identity;
 
+    @Inject
+    JsonWebToken jwt;
+
     // =========================
     // CREATE USER
     // =========================
@@ -42,9 +47,7 @@ public class BackofficeGraphQLResource {
     @RolesAllowed({"ADMIN"})
     public UserOutput createUser(CreateUserInput input) {
 
-        LOG.info("🔥 ENTER createUser()");
-        LOG.info("👤 USER: " + identity.getPrincipal().getName());
-        LOG.info("🔐 ROLES: " + identity.getRoles());
+        logSecurity("createUser");
 
         validateCreateUser(input);
 
@@ -66,10 +69,7 @@ public class BackofficeGraphQLResource {
     @RolesAllowed({"ADMIN"})
     public List<UserOutput> listUsers() {
 
-        LOG.info("🔥 ENTER listUsers()");
-        LOG.info("👤 USER: " + identity.getPrincipal().getName());
-        LOG.info("🔐 ROLES: " + identity.getRoles());
-        LOG.info("🛡 ADMIN CHECK REQUIRED");
+        logSecurity("listUsers");
 
         return listUsersUseCase.execute()
                 .stream()
@@ -83,6 +83,8 @@ public class BackofficeGraphQLResource {
     @Query("GetUser")
     @RolesAllowed({"ADMIN"})
     public UserOutput getUser(@Name("id") String id) {
+
+        logSecurity("getUser");
 
         LOG.info("🔥 GET USER id: " + id);
 
@@ -99,6 +101,8 @@ public class BackofficeGraphQLResource {
     public UserOutput editUser(
             @Name("id") String id,
             @Name("input") EditUserInput input) {
+
+        logSecurity("editUser");
 
         LOG.info("🔥 EDIT USER id: " + id);
 
@@ -118,6 +122,8 @@ public class BackofficeGraphQLResource {
     @RolesAllowed({"ADMIN"})
     public boolean deleteUser(@Name("id") String id) {
 
+        logSecurity("deleteUser");
+
         LOG.info("🔥 DELETE USER id: " + id);
 
         boolean result = deleteUserUseCase.execute(UUID.fromString(id));
@@ -125,6 +131,34 @@ public class BackofficeGraphQLResource {
         LOG.info("🗑 DELETE RESULT: " + result);
 
         return result;
+    }
+
+    // =========================
+    // SECURITY LOGGER
+    // =========================
+    private void logSecurity(String method) {
+
+        LOG.info("====================================");
+        LOG.info("🔥 ENTER: " + method);
+
+        LOG.info("AUTHENTICATED: " + !identity.isAnonymous());
+
+        if (!identity.isAnonymous()) {
+
+            LOG.info("👤 PRINCIPAL: " + identity.getPrincipal().getName());
+
+            LOG.info("🔐 ROLES: " + identity.getRoles());
+
+            LOG.info("📧 JWT EMAIL: " + jwt.getClaim("email"));
+
+            LOG.info("🛡 JWT ROLE: " + jwt.getClaim("role"));
+
+            LOG.info("🆔 JWT SUBJECT: " + jwt.getSubject());
+
+            LOG.info("📜 JWT CLAIMS: " + jwt.getClaimNames());
+        }
+
+        LOG.info("====================================");
     }
 
     // =========================
