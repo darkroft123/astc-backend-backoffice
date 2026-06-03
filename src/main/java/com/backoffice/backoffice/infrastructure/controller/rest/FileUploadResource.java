@@ -4,11 +4,13 @@ import com.backoffice.backoffice.application.in.DeleteUserAvatarUseCase;
 import com.backoffice.backoffice.application.in.GetUserAvatarUseCase;
 import com.backoffice.backoffice.application.in.UploadUserAvatarUseCase;
 import com.backoffice.backoffice.infrastructure.controller.rest.dto.FileUploadForm;
+
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
+
+import org.jboss.resteasy.reactive.MultipartForm;
 
 import java.util.UUID;
 
@@ -20,6 +22,9 @@ public class FileUploadResource {
 
     @Inject
     DeleteUserAvatarUseCase deleteUserAvatarUseCase;
+
+    @Inject
+    GetUserAvatarUseCase getUserAvatarUseCase;
 
     // ====================== UPLOAD ======================
     @POST
@@ -56,6 +61,7 @@ public class FileUploadResource {
 
         } catch (Exception e) {
             e.printStackTrace();
+
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("{\"error\":\"Error subiendo avatar\"}")
                     .build();
@@ -81,20 +87,19 @@ public class FileUploadResource {
 
         } catch (Exception e) {
             e.printStackTrace();
+
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("{\"error\":\"Error eliminando avatar\"}")
                     .build();
         }
     }
 
-    @Inject
-    GetUserAvatarUseCase getUserAvatarUseCase;
-
-    // ====================== GET AVATAR (Presigned URL) ======================
+    // ====================== GET AVATAR ======================
     @GET
     @Path("/avatar/{userId}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getAvatar(@PathParam("userId") UUID userId) {
+
         try {
             String presignedUrl = getUserAvatarUseCase.execute(userId);
 
@@ -105,12 +110,13 @@ public class FileUploadResource {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity("{\"error\":\"" + e.getMessage() + "\"}")
                     .build();
+
         } catch (Exception e) {
             e.printStackTrace();
+
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("{\"error\":\"Error obteniendo avatar\"}")
                     .build();
         }
     }
-
 }

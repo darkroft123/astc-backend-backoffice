@@ -1,239 +1,102 @@
 package com.backoffice.backoffice.infrastructure.controller.graphql;
 
-import com.backoffice.backoffice.application.in.*;
-import com.backoffice.backoffice.domain.model.User;
+import com.backoffice.backoffice.infrastructure.client.AuthClientLogger;
 import com.backoffice.backoffice.infrastructure.controller.graphql.dto.*;
-import com.backoffice.backoffice.infrastructure.repository.RoleRepository;
-import com.backoffice.backoffice.domain.entity.RoleEntity;
+import com.backoffice.backoffice.infrastructure.security.AuthContext;
 
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.graphql.*;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import org.jboss.logging.Logger;
 
-import io.quarkus.security.identity.SecurityIdentity;
-
 import java.util.List;
-import java.util.UUID;
 
 @GraphQLApi
 @ApplicationScoped
+@RolesAllowed({"ADMIN"})
 public class BackofficeGraphQLResource {
 
     private static final Logger LOG = Logger.getLogger(BackofficeGraphQLResource.class);
 
-    @Inject CreateUserUseCase createUserUseCase;
-    @Inject ListUsersUseCase listUsersUseCase;
-    @Inject GetUserDetailUseCase getUserDetailUseCase;
-    @Inject EditUserUseCase editUserUseCase;
-    @Inject DeleteUserUseCase deleteUserUseCase;
-
-    @Inject RoleRepository roleRepository;
+    @Inject
+    AuthContext authContext;
 
     @Inject
-    SecurityIdentity identity;
-
-    @Inject
-    JsonWebToken jwt;
+    AuthClientLogger authClient;
 
     // =========================
     // CREATE USER
     // =========================
     @Mutation
-    @RolesAllowed({"ADMIN"})
-    public UserOutput createUser(CreateUserInput input) {
+    public CreateUserResponse createUser(@Name("input") CreateUserInput input) {
 
-        logSecurity("createUser");
+        LOG.info("🚀 CREATE USER START");
+        LOG.info("=================================");
+        LOG.info("📥 INPUT BACKOFFICE:");
+        LOG.info("username: " + input.getUsername());
+        LOG.info("email: " + input.getEmail());
+        LOG.info("roleId: " + input.getRoleId());
+        LOG.info("password: " + input.getPassword());
+        authContext.assertBackoffice();
 
-        validateCreateUser(input);
+        // 🔥 ESTE ES EL PUNTO CLAVE (SALIDA AL MICROSERVICIO)
+        LOG.info("➡️ CALLING AUTH-SERVICE createUser");
+        LOG.info("➡️ SENDING REQUEST VIA GRAPHQL CLIENT");
 
-        User user = mapCreate(input);
+        CreateUserResponse response = authClient.createUser(input);
 
-        UUID id = createUserUseCase.execute(user);
+        LOG.info("📤 RESPONSE FROM AUTH-SERVICE:");
+        LOG.info(response);
 
-        user.setId(id);
-
-        LOG.info("✅ USER CREATED: " + id);
-
-        return UserOutput.fromDomain(user);
+        return response;
     }
 
     // =========================
     // LIST USERS
     // =========================
-    @Query("ListUsers")
-    @RolesAllowed({"ADMIN"})
+    @Query
     public List<UserOutput> listUsers() {
 
-        logSecurity("listUsers");
+        authContext.assertBackoffice();
 
-        return listUsersUseCase.execute()
-                .stream()
-                .map(UserOutput::fromDomain)
-                .toList();
+        return authClient.listUsers();
     }
 
     // =========================
     // GET USER
     // =========================
-    @Query("GetUser")
-    @RolesAllowed({"ADMIN"})
+    @Query
     public UserOutput getUser(@Name("id") String id) {
 
-        logSecurity("getUser");
+        authContext.assertBackoffice();
 
-        LOG.info("🔥 GET USER id: " + id);
-
-        User user = getUserDetailUseCase.execute(UUID.fromString(id));
-
-        return UserOutput.fromDomain(user);
+        return authClient.getUser(id);
     }
 
     // =========================
     // EDIT USER
     // =========================
     @Mutation
-    @RolesAllowed({"ADMIN"})
     public UserOutput editUser(
             @Name("id") String id,
             @Name("input") EditUserInput input) {
 
-        logSecurity("editUser");
+        authContext.assertBackoffice();
 
-        LOG.info("🔥 EDIT USER id: " + id);
-
-        User user = mapEdit(input);
-
-        User updated = editUserUseCase.execute(UUID.fromString(id), user);
-
-        LOG.info("✅ USER UPDATED: " + id);
-
-        return UserOutput.fromDomain(updated);
+        return authClient.editUser(id, input);
     }
 
     // =========================
     // DELETE USER
     // =========================
     @Mutation
-    @RolesAllowed({"ADMIN"})
-    public boolean deleteUser(@Name("id") String id) {
+    public Boolean deleteUser(@Name("id") String id) {
 
-        logSecurity("deleteUser");
+        authContext.assertBackoffice();
 
-        LOG.info("🔥 DELETE USER id: " + id);
-
-        boolean result = deleteUserUseCase.execute(UUID.fromString(id));
-
-        LOG.info("🗑 DELETE RESULT: " + result);
-
-        return result;
-    }
-
-    // =========================
-    // SECURITY LOGGER
-    // =========================
-    private void logSecurity(String method) {
-
-        LOG.info("====================================");
-        LOG.info("🔥 ENTER: " + method);
-
-        LOG.info("AUTHENTICATED: " + !identity.isAnonymous());
-
-        if (!identity.isAnonymous()) {
-
-            LOG.info("👤 PRINCIPAL: " + identity.getPrincipal().getName());
-
-            LOG.info("🔐 ROLES: " + identity.getRoles());
-
-            LOG.info("📧 JWT EMAIL: " + jwt.getClaim("email"));
-
-            LOG.info("🛡 JWT ROLE: " + jwt.getClaim("role"));
-
-            LOG.info("🆔 JWT SUBJECT: " + jwt.getSubject());
-
-            LOG.info("📜 JWT CLAIMS: " + jwt.getClaimNames());
-        }
-
-        LOG.info("====================================");
-    }
-
-    // =========================
-    // MAPPER CREATE
-    // =========================
-    private User mapCreate(CreateUserInput input) {
-
-        User user = new User();
-
-        user.setUsername(input.getUsername());
-        user.setFirstName(input.getFirstName());
-        user.setLastName(input.getLastName());
-        user.setEmail(input.getEmail());
-        user.setPhone(input.getPhone());
-        user.setPassword(input.getPassword());
-
-        if (input.getRoleId() != null) {
-            user.setRoleId(resolveRole(input.getRoleId()));
-        }
-
-        return user;
-    }
-
-    // =========================
-    // MAPPER EDIT
-    // =========================
-    private User mapEdit(EditUserInput input) {
-
-        User user = new User();
-
-        user.setUsername(input.getUsername());
-        user.setFirstName(input.getFirstName());
-        user.setLastName(input.getLastName());
-        user.setEmail(input.getEmail());
-        user.setPhone(input.getPhone());
-
-        if (input.getRoleId() != null) {
-            user.setRoleId(resolveRole(input.getRoleId()));
-        }
-
-        return user;
-    }
-
-    // =========================
-    // ROLE RESOLVER
-    // =========================
-    private UUID resolveRole(String roleInput) {
-
-        RoleEntity role = roleRepository.findByIdOrCode(roleInput)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("Rol inválido: " + roleInput)
-                );
-
-        return role.getId();
-    }
-
-    // =========================
-    // VALIDATION
-    // =========================
-    private void validateCreateUser(CreateUserInput input) {
-
-        if (input == null) {
-            throw new IllegalArgumentException("Input requerido");
-        }
-
-        if (input.getEmail() == null || input.getEmail().isBlank()) {
-            throw new IllegalArgumentException("Email requerido");
-        }
-
-        if (input.getUsername() == null || input.getUsername().isBlank()) {
-            throw new IllegalArgumentException("Username requerido");
-        }
-
-        if (input.getRoleId() == null) {
-            throw new IllegalArgumentException("Role requerido");
-        }
+        return authClient.deleteUser(id);
     }
 }
