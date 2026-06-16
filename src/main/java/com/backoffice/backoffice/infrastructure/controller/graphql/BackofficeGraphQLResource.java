@@ -17,7 +17,6 @@ import java.util.Base64;
 import java.util.List;
 @GraphQLApi
 @ApplicationScoped
-@RolesAllowed({"ADMIN"})
 public class BackofficeGraphQLResource {
 
     private static final Logger LOG = Logger.getLogger(BackofficeGraphQLResource.class);
@@ -36,67 +35,117 @@ public class BackofficeGraphQLResource {
     // =========================
   
     @Mutation
-public CreateUserResponse createUser(@Name("input") CreateUserInput input) {
+    @RolesAllowed({"ADMIN"})
+    public CreateUserResponse createUser(@Name("input") CreateUserInput input) throws Exception {
 
-    LOG.info("🚀 CREATE USER START");
-    LOG.info("=================================");
-    LOG.info("📥 INPUT BACKOFFICE:");
-    LOG.info("username: " + input.getUsername());
-    LOG.info("email: " + input.getEmail());
-    LOG.info("roleId: " + input.getRoleId());
+        LOG.info("🚀 [Backoffice Backend] CREATE USER REQUEST RECEIVED");
+        LOG.info("=================================================");
+        LOG.info("📥 Incoming createUser Payload:");
+        LOG.info("  Username: " + input.getUsername());
+        LOG.info("  Email: " + input.getEmail());
+        LOG.info("  First Name: " + input.getFirstName());
+        LOG.info("  Last Name: " + input.getLastName());
+        LOG.info("  Phone: " + input.getPhone());
+        LOG.info("  Role ID: " + input.getRoleId());
+        LOG.info("  Avatar payload present: " + (input.getAvatarUrl() != null && !input.getAvatarUrl().isBlank()));
+        LOG.info("=================================================");
 
-    authContext.assertBackoffice();
+        authContext.assertBackoffice();
 
-    try {
+        String key = null;
+        try {
+            if (input.getAvatarUrl() != null && !input.getAvatarUrl().isBlank()) {
+                byte[] imageBytes;
+                try {
+                    imageBytes = Base64.getDecoder().decode(input.getAvatarUrl());
+                } catch (IllegalArgumentException decErr) {
+                    LOG.error("❌ [Backoffice Backend] Failed to decode base64 avatar image string", decErr);
+                    throw decErr;
+                }
 
-        if (input.getAvatarUrl() != null &&
-            !input.getAvatarUrl().isBlank()) {
+                String filename = input.getUsername() + ".png";
+                
+                LOG.info("[MinIO] Upload requested");
+                LOG.info("[MinIO] Bucket: " + s3StorageAdapter.getBucket());
+                LOG.info("[MinIO] Filename: " + filename);
+                LOG.info("[MinIO] Size: " + imageBytes.length + " bytes");
+                LOG.info("[MinIO] Content-Type: image/png");
 
-            LOG.info("📸 Avatar recibido en base64");
+                long startTime = System.currentTimeMillis();
+                try {
+                    key = s3StorageAdapter.upload(
+                            "avatars",
+                            filename,
+                            new ByteArrayInputStream(imageBytes),
+                            imageBytes.length,
+                            "image/png"
+                    );
+                    
+                    long duration = System.currentTimeMillis() - startTime;
+                    String publicUrl = s3StorageAdapter.getPublicUrl(key);
+                    
+                    LOG.info("[MinIO] Upload successful");
+                    LOG.info("[MinIO] Object key: " + key);
+                    LOG.info("[MinIO] Public URL: " + publicUrl);
+                    LOG.info("[MinIO] Upload duration: " + duration + " ms");
 
-            byte[] imageBytes =
-                    Base64.getDecoder().decode(input.getAvatarUrl());
+                    input.setAvatarUrl(publicUrl);
+                } catch (Exception uploadErr) {
+                    LOG.error("[MinIO] Upload failed", uploadErr);
+                    LOG.error("[MinIO] Exception message: " + uploadErr.getMessage());
+                    throw uploadErr;
+                }
+            } else {
+                LOG.info("[MinIO] Avatar upload skipped because no image was provided");
+            }
 
-            String key = s3StorageAdapter.upload(
-                    "avatars",
-                    input.getUsername() + ".png",
-                    new ByteArrayInputStream(imageBytes),
-                    imageBytes.length,
-                    "image/png"
-            );
+            LOG.info("➡️ [Backoffice Backend] Calling auth-service createUser API...");
+            CreateUserResponse response = authClient.createUser(input);
 
-            String publicUrl =
-                    s3StorageAdapter.getPublicUrl(key);
+            LOG.info("📤 [Backoffice Backend] Response received from auth-service:");
+            if (response != null) {
+                LOG.info("  Created User ID: " + response.getId());
+                LOG.info("  Created Username: " + response.getUsername());
+                LOG.info("  Created Email: " + response.getEmail());
+            } else {
+                LOG.info("  Response is null");
+            }
 
-            LOG.info("✅ Avatar subido a MinIO:");
-            LOG.info(publicUrl);
+            return response;
 
-            input.setAvatarUrl(publicUrl);
+        } catch (io.smallrye.graphql.client.GraphQLClientException e) {
+            LOG.error("💥 [Backoffice Backend] GraphQL client error calling auth-service: " + e.getMessage());
+            if (key != null) {
+                LOG.warn("[CreateUser] Avatar uploaded successfully but user creation failed");
+                LOG.warn("[CreateUser] Uploaded object key: " + key);
+                LOG.info("[MinIO] Initiating automatic cleanup for orphaned avatar...");
+                s3StorageAdapter.delete(key);
+            }
+            if (e.getErrors() != null && !e.getErrors().isEmpty()) {
+                String errorMsg = e.getErrors().get(0).getMessage();
+                LOG.error("💥 [Backoffice Backend] Surfacing friendly error: " + errorMsg);
+                throw new org.eclipse.microprofile.graphql.GraphQLException(errorMsg);
+            }
+            throw e;
+        } catch (Exception e) {
+            LOG.error("💥 [Backoffice Backend] Exception occurred during createUser flow", e);
+            if (key != null) {
+                LOG.warn("[CreateUser] Avatar uploaded successfully but user creation failed");
+                LOG.warn("[CreateUser] Uploaded object key: " + key);
+                LOG.info("[MinIO] Initiating automatic cleanup for orphaned avatar...");
+                s3StorageAdapter.delete(key);
+            }
+            throw e;
         }
-
-        LOG.info("➡️ CALLING AUTH-SERVICE createUser");
-
-        CreateUserResponse response =
-                authClient.createUser(input);
-
-        LOG.info("📤 RESPONSE FROM AUTH-SERVICE:");
-        LOG.info(response);
-
-        return response;
-
-    } catch (Exception e) {
-
-        LOG.error("💥 Error creando usuario", e);
-        throw e;
     }
-}
     // =========================
     // LIST USERS
     // =========================
     @Query
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER"})
     public List<UserOutput> listUsers() {
 
-        authContext.assertBackoffice();
+        authContext.assertBackofficeOrProjectManager();
 
         return authClient.listUsers();
     }
@@ -105,9 +154,10 @@ public CreateUserResponse createUser(@Name("input") CreateUserInput input) {
     // GET USER
     // =========================
     @Query
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER"})
     public UserOutput getUser(@Name("id") String id) {
 
-        authContext.assertBackoffice();
+        authContext.assertBackofficeOrProjectManager();
 
         return authClient.getUser(id);
     }
@@ -116,19 +166,31 @@ public CreateUserResponse createUser(@Name("input") CreateUserInput input) {
     // EDIT USER
     // =========================
     @Mutation
+    @RolesAllowed({"ADMIN"})
     public UserOutput editUser(
             @Name("id") String id,
-            @Name("input") EditUserInput input) {
+            @Name("input") EditUserInput input) throws Exception {
 
         authContext.assertBackoffice();
 
-        return authClient.editUser(id, input);
+        try {
+            return authClient.editUser(id, input);
+        } catch (io.smallrye.graphql.client.GraphQLClientException e) {
+            LOG.error("💥 [Backoffice Backend] GraphQL client error calling auth-service on editUser: " + e.getMessage());
+            if (e.getErrors() != null && !e.getErrors().isEmpty()) {
+                String errorMsg = e.getErrors().get(0).getMessage();
+                LOG.error("💥 [Backoffice Backend] Surfacing friendly error on editUser: " + errorMsg);
+                throw new org.eclipse.microprofile.graphql.GraphQLException(errorMsg);
+            }
+            throw e;
+        }
     }
 
     // =========================
     // DELETE USER
     // =========================
     @Mutation
+    @RolesAllowed({"ADMIN"})
     public Boolean deleteUser(@Name("id") String id) {
 
         authContext.assertBackoffice();

@@ -24,6 +24,9 @@ public class S3StorageAdapter {
     @ConfigProperty(name = "app.storage.endpoint")
     String endpoint;
 
+    @ConfigProperty(name = "app.storage.public-endpoint", defaultValue = "")
+    String publicEndpoint;
+
     @ConfigProperty(name = "app.storage.access-key")
     String accessKey;
 
@@ -107,10 +110,28 @@ public class S3StorageAdapter {
     }
 
     public String getPublicUrl(String key) {
-        String url = endpoint + "/" + bucket + "/" + key;
+        String base = (publicEndpoint != null && !publicEndpoint.isEmpty()) ? publicEndpoint : endpoint;
+        String url = base + "/" + bucket + "/" + key;
 
         log.debug("Generated public URL -> {}", url);
 
         return url;
+    }
+
+    public String getBucket() {
+        return bucket;
+    }
+
+    public void delete(String key) {
+        log.info("Deleting file from S3 -> bucket={}, key={}", bucket, key);
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build());
+            log.info("File deleted successfully from S3 -> key={}", key);
+        } catch (Exception e) {
+            log.error("Error deleting file from S3 -> key={}", key, e);
+        }
     }
 }

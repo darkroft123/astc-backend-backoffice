@@ -17,7 +17,7 @@ public interface AuthClient {
     // MUTATIONS (ESCRITURA)
     // =====================
     @Mutation
-    CreateUserResponse createUser(CreateUserInput input);
+    CreateUserResponse createUser(@Name("input") CreateUserInput input);
 
     @Mutation
     UserOutput editUser(
@@ -35,5 +35,5 @@ public interface AuthClient {
     UserOutput getUser(@Name("id") String id);
 
     @Query
-    List<UserOutput> listUsers();
-}
+    io.smallrye.graphql.client.typesafe.api.ErrorOr<List<UserOutput>> listUsers();
+}
