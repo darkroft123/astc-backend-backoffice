@@ -18,7 +18,7 @@ function normalizeValue(value) {
   return value;
 }
 
-export async function callProjectAssistance(query, variables = {}, token = '') {
+export async function callBackoffice(query, variables = {}, token = '') {
   if (!BACKOFFICE_URL_GRAP) {
     throw new Error('Falta PROJECT_ASSISTANCE_GRAPHQL_URL en el .env del subgraph');
   }

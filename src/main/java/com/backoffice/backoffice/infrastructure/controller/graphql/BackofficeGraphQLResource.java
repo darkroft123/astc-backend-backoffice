@@ -153,11 +153,11 @@ public class BackofficeGraphQLResource {
     // =========================
     // GET USER
     // =========================
-    @Query
-    @RolesAllowed({"ADMIN", "PROJECT_MANAGER"})
+    @Query("getUser")
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public UserOutput getUser(@Name("id") String id) {
 
-        authContext.assertBackofficeOrProjectManager();
+        authContext.assertBackofficeOrProjectManagerOrTeamMember();
 
         return authClient.getUser(id);
     }

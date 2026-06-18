@@ -67,4 +67,16 @@ public class AuthContext {
             throw new SecurityException("Access denied: requires ADMIN or PROJECT_MANAGER role");
         }
     }
+
+    public void assertBackofficeOrProjectManagerOrTeamMember() {
+        // 🔥 Permitir en modo dev
+        if (jwt == null || jwt.getSubject() == null) {
+            return;
+        }
+
+        String role = getRole();
+        if (!"ADMIN".equals(role) && !"PROJECT_MANAGER".equals(role) && !"TEAM_MEMBER".equals(role)) {
+            throw new SecurityException("Access denied: requires ADMIN, PROJECT_MANAGER or TEAM_MEMBER role");
+        }
+    }
 }

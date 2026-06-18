@@ -14,6 +14,9 @@ public class CreateUserResponse {
 
     private String avatarUrl;
 
+    private String roleCode;
+    private String roleName;
+
     public CreateUserResponse() {
     }
 
@@ -33,6 +36,28 @@ public class CreateUserResponse {
         this.phone = phone;
         this.roleId = roleId;
         this.avatarUrl = avatarUrl;
+    }
+
+    public CreateUserResponse(String id,
+                              String username,
+                              String email,
+                              String firstName,
+                              String lastName,
+                              String phone,
+                              String roleId,
+                              String avatarUrl,
+                              String roleCode,
+                              String roleName) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.phone = phone;
+        this.roleId = roleId;
+        this.avatarUrl = avatarUrl;
+        this.roleCode = roleCode;
+        this.roleName = roleName;
     }
 
     public String getId() { return id; }
@@ -58,4 +83,10 @@ public class CreateUserResponse {
 
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+
+    public String getRoleCode() { return roleCode; }
+    public void setRoleCode(String roleCode) { this.roleCode = roleCode; }
+
+    public String getRoleName() { return roleName; }
+    public void setRoleName(String roleName) { this.roleName = roleName; }
 }

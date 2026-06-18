@@ -17,6 +17,8 @@ public class UserDetailOutput {
     private String phone;
     private String avatarUrl;
     private UUID roleId;
+    private String roleCode;
+    private String roleName;
 
     public static UserDetailOutput fromDomain(User user) {
 
@@ -63,4 +65,10 @@ public class UserDetailOutput {
 
     public UUID getRoleId() { return roleId; }
     public void setRoleId(UUID roleId) { this.roleId = roleId; }
+
+    public String getRoleCode() { return roleCode; }
+    public void setRoleCode(String roleCode) { this.roleCode = roleCode; }
+
+    public String getRoleName() { return roleName; }
+    public void setRoleName(String roleName) { this.roleName = roleName; }
 }

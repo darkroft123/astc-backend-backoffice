@@ -34,24 +34,15 @@ public class AuthClientLogger {
     }
 
     public List<UserOutput> listUsers() {
-        LOG.info("🚀 [AUTH CLIENT] listUsers REQUEST");
-        try {
-            io.smallrye.graphql.client.typesafe.api.ErrorOr<List<UserOutput>> response = authClient.listUsers();
-            
-            if (response.hasErrors()) {
-                LOG.error("💥 [AUTH CLIENT] GraphQL response had errors calling Auth Service: " + response.errors());
-                response.errors().forEach(err -> {
-                    LOG.error("   - Message: " + err.getMessage());
-                    LOG.error("   - Locations: " + err.getLocations());
-                    LOG.error("   - Path: " + err.getPath());
-                    LOG.error("   - Extensions: " + err.getExtensions());
-                });
-                throw new RuntimeException("GraphQL error from Auth Service: " + response.errors().get(0).getMessage());
-            }
 
-            List<UserOutput> value = response.value();
-            LOG.info("📤 [AUTH CLIENT] RESPONSE SIZE: " + (value != null ? value.size() : 0));
-            return value;
+        LOG.info("🚀 [AUTH CLIENT] listUsers REQUEST");
+
+        try {
+            List<UserOutput> response = authClient.listUsers();
+
+            LOG.info("📤 [AUTH CLIENT] RESPONSE SIZE: " + (response != null ? response.size() : 0));
+            return response;
+
         } catch (Exception e) {
             LOG.error("💥 [AUTH CLIENT] ERROR listUsers", e);
             throw e;

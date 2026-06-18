@@ -13,6 +13,8 @@ export const resolvers = {
             email
             phone
             roleId
+            roleCode
+            roleName
           }
         }`,
         {},
@@ -33,6 +35,8 @@ export const resolvers = {
             email
             phone
             roleId
+            roleCode
+            roleName
           }
         }`,
         { id },
@@ -55,6 +59,8 @@ export const resolvers = {
             email
             phone
             roleId
+            roleCode
+            roleName
           }
         }`,
         { input },
@@ -75,6 +81,8 @@ export const resolvers = {
             email
             phone
             roleId
+            roleCode
+            roleName
           }
         }`,
         { id, input },

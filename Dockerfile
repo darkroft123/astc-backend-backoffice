@@ -4,7 +4,9 @@ WORKDIR /app
 
 COPY pom.xml ./
 
-RUN mvn -B dependency:go-offline
+RUN mvn -B dependency:go-offline \
+    -Dhttps.protocols=TLSv1.2 \
+    -Dmaven.wagon.http.pool=false
 
 COPY src ./src
 

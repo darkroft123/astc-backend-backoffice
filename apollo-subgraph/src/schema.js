@@ -27,6 +27,8 @@ export const typeDefs = parse(/* GraphQL */ `
     phone: String
     roleId: String
     avatarUrl: String
+    roleCode: String
+    roleName: String
   }
 
   # =========================
