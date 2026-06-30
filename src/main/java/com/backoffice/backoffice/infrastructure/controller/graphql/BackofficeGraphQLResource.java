@@ -82,14 +82,14 @@ public class BackofficeGraphQLResource {
                     );
                     
                     long duration = System.currentTimeMillis() - startTime;
-                    String publicUrl = s3StorageAdapter.getPublicUrl(key);
+                    String presignedUrl = s3StorageAdapter.generatePresignedUrl(key, 525600);
                     
                     LOG.info("[MinIO] Upload successful");
                     LOG.info("[MinIO] Object key: " + key);
-                    LOG.info("[MinIO] Public URL: " + publicUrl);
+                    LOG.info("[MinIO] Presigned URL: " + presignedUrl);
                     LOG.info("[MinIO] Upload duration: " + duration + " ms");
 
-                    input.setAvatarUrl(publicUrl);
+                    input.setAvatarUrl(presignedUrl);
                 } catch (Exception uploadErr) {
                     LOG.error("[MinIO] Upload failed", uploadErr);
                     LOG.error("[MinIO] Exception message: " + uploadErr.getMessage());

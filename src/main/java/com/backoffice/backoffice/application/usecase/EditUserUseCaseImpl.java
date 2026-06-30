@@ -10,6 +10,8 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -49,7 +51,7 @@ public class EditUserUseCaseImpl implements EditUserUseCase {
         if (user.getRoleId() != null)
             entity.setRoleId(user.getRoleId());
 
-        entity.setUpdatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(Instant.now().atZone(ZoneOffset.UTC).toLocalDateTime());
 
         return toDomain(entity);
     }

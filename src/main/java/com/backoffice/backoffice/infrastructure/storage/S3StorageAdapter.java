@@ -11,9 +11,13 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -40,21 +44,40 @@ public class S3StorageAdapter {
     String bucket;
 
     private S3Client s3Client;
+    private S3Presigner presigner;
 
     @PostConstruct
     void init() {
-        log.info("Initializing S3 client... endpoint={}, region={}, bucket={}", endpoint, region, bucket);
+        String effectivePublicEndpoint = (publicEndpoint != null && !publicEndpoint.isBlank())
+                ? publicEndpoint : endpoint;
+
+        log.info(
+                "Initializing S3 client... endpoint={}, publicEndpoint={}, effectivePresignEndpoint={}, region={}, bucket={}",
+                endpoint,
+                publicEndpoint,
+                effectivePublicEndpoint,
+                region,
+                bucket
+        );
 
         try {
+            var credentials = StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(accessKey, secretKey));
+
             s3Client = S3Client.builder()
                     .endpointOverride(URI.create(endpoint))
                     .region(Region.of(region))
-                    .credentialsProvider(StaticCredentialsProvider.create(
-                            AwsBasicCredentials.create(accessKey, secretKey)))
+                    .credentialsProvider(credentials)
                     .forcePathStyle(true)
                     .build();
 
-            log.info("S3 client initialized successfully");
+            presigner = S3Presigner.builder()
+                    .endpointOverride(URI.create(effectivePublicEndpoint))
+                    .region(Region.of(region))
+                    .credentialsProvider(credentials)
+                    .build();
+
+            log.info("S3 client initialized (internal endpoint). Presigner initialized (public endpoint)");
 
             ensureBucketExists();
 
@@ -110,11 +133,70 @@ public class S3StorageAdapter {
     }
 
     public String getPublicUrl(String key) {
-        String base = (publicEndpoint != null && !publicEndpoint.isEmpty()) ? publicEndpoint : endpoint;
-        String url = base + "/" + bucket + "/" + key;
+        if (key == null || key.isBlank()) {
+            return key;
+        }
 
-        log.debug("Generated public URL -> {}", url);
+        if (key.startsWith("http://") || key.startsWith("https://")) {
+            String bucketPath = "/" + bucket + "/";
+            int idx = key.indexOf(bucketPath);
+            if (idx >= 0) {
+                String extractedKey = key.substring(idx + bucketPath.length());
+                int queryIdx = extractedKey.indexOf('?');
+                if (queryIdx >= 0) {
+                    extractedKey = extractedKey.substring(0, queryIdx);
+                }
+                log.info("getPublicUrl: extracted key from old URL, re-signing -> key={}", extractedKey);
+                return generatePresignedUrl(extractedKey, 60);
+            }
+            log.info("getPublicUrl: key is an external URL, returning as-is -> {}", key);
+            return key;
+        }
 
+        log.info("getPublicUrl: raw S3 key, generating presigned URL -> key={}", key);
+        return generatePresignedUrl(key, 60);
+    }
+
+    public String generatePresignedUrl(String key, int expiryMinutes) {
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(expiryMinutes))
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        String url = presigner.presignGetObject(presignRequest).url().toString();
+
+        url = normalizeMinioUrl(url);
+
+        log.info("Generated presigned URL -> key={}, expiryMinutes={}, url={}", key, expiryMinutes, url);
+
+        return url;
+    }
+
+    private String normalizeMinioUrl(String url) {
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String host = uri.getHost();
+            if (host == null) return url;
+            String expectedPrefix = bucket + ".";
+            if (host.startsWith(expectedPrefix)) {
+                String actualHost = host.substring(expectedPrefix.length());
+                String newPath = "/" + bucket + uri.getRawPath();
+                StringBuilder sb = new StringBuilder();
+                sb.append(uri.getScheme()).append("://").append(actualHost);
+                if (uri.getPort() > 0) sb.append(":").append(uri.getPort());
+                sb.append(newPath);
+                if (uri.getRawQuery() != null) sb.append("?").append(uri.getRawQuery());
+                log.info("Normalized virtual-host-style URL: {} -> {}", url, sb);
+                return sb.toString();
+            }
+        } catch (Exception e) {
+            log.warn("Error normalizing MinIO presigned URL: {}", e.getMessage());
+        }
         return url;
     }
 

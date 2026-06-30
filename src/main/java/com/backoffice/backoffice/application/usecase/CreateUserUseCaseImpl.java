@@ -13,6 +13,8 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.mindrot.jbcrypt.BCrypt;
@@ -47,7 +49,7 @@ public class CreateUserUseCaseImpl implements CreateUserUseCase {
         entity.setPhone(user.getPhone());
         entity.setAvatarUrl(user.getAvatarUrl());
         entity.setRoleId(user.getRoleId());
-        entity.setCreatedAt(LocalDateTime.now());
+        entity.setCreatedAt(utcNow());
 
 
         // 🔥 FIX 3: HASH PASSWORD AQUÍ
@@ -64,12 +66,16 @@ public class CreateUserUseCaseImpl implements CreateUserUseCase {
         event.setAggregateId(id);
         event.setEventType("USER_CREATED");
         event.setPayload(buildPayload(entity));
-        event.setCreatedAt(LocalDateTime.now());
+        event.setCreatedAt(utcNow());
 
         outboxRepository.persist(event);
 
         // 5. RETURN ID
         return id;
+    }
+
+    private LocalDateTime utcNow() {
+        return Instant.now().atZone(ZoneOffset.UTC).toLocalDateTime();
     }
 
     private String buildPayload(UserEntity u) {

@@ -25,6 +25,7 @@ COPY --from=build /app/target/*-runner.jar app.jar
 
 EXPOSE 8080
 
-ENV JAVA_OPTS="-XX:+UseContainerSupport"
+ENV TZ=UTC
+ENV JAVA_OPTS="-Duser.timezone=UTC -XX:+UseContainerSupport"
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

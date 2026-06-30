@@ -30,8 +30,16 @@ public class S3Service {
             @ConfigProperty(name = "quarkus.s3.aws.credentials.static-provider.access-key-id") String accessKey,
             @ConfigProperty(name = "quarkus.s3.aws.credentials.static-provider.secret-access-key") String secretKey,
             @ConfigProperty(name = "quarkus.s3.endpoint-override") String endpoint,
-            @ConfigProperty(name = "quarkus.s3.aws.region") String region
+            @ConfigProperty(name = "quarkus.s3.aws.region") String region,
+            @ConfigProperty(name = "storage.public-endpoint", defaultValue = "") String publicEndpoint
     ) {
+        String effectivePublicEndpoint = (publicEndpoint != null && !publicEndpoint.isBlank())
+                ? publicEndpoint : endpoint;
+
+        System.out.println("[S3Service] Init -> internal endpoint=" + endpoint
+                + ", publicEndpoint=" + publicEndpoint
+                + ", effectivePresignEndpoint=" + effectivePublicEndpoint);
+
         // Cliente S3 para upload y delete
         this.s3 = S3Client.builder()
                 .endpointOverride(URI.create(endpoint))
@@ -45,16 +53,16 @@ public class S3Service {
                 .forcePathStyle(true)
                 .build();
 
-        // Presigner (sin httpClientBuilder)
+        // Presigner MUST use public/browser-accessible endpoint
         this.presigner = S3Presigner.builder()
-                .endpointOverride(URI.create(endpoint))
+                .endpointOverride(URI.create(effectivePublicEndpoint))
                 .credentialsProvider(
                         StaticCredentialsProvider.create(
                                 AwsBasicCredentials.create(accessKey, secretKey)
                         )
                 )
                 .region(Region.of(region))
-                .build();   // ← Aquí no se pone httpClientBuilder
+                .build();
     }
 
     public void uploadObject(String objectName, InputStream data, long size, String contentType) {
@@ -98,11 +106,37 @@ public class S3Service {
                     .build();
 
             String url = presigner.presignGetObject(presignRequest).url().toString();
-            System.out.println("🔗 Presigned URL generada: " + objectName);
+
+            url = normalizeMinioUrl(url);
+
+            System.out.println("[S3Service] Generated presigned URL -> key=" + objectName + ", expiryMinutes=" + expiryMinutes + ", url=" + url);
             return url;
 
         } catch (Exception e) {
             throw new RuntimeException("❌ Error generando presigned URL para: " + objectName, e);
         }
+    }
+
+    private String normalizeMinioUrl(String url) {
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String host = uri.getHost();
+            if (host == null) return url;
+            String expectedPrefix = bucketName + ".";
+            if (host.startsWith(expectedPrefix)) {
+                String actualHost = host.substring(expectedPrefix.length());
+                String newPath = "/" + bucketName + uri.getRawPath();
+                StringBuilder sb = new StringBuilder();
+                sb.append(uri.getScheme()).append("://").append(actualHost);
+                if (uri.getPort() > 0) sb.append(":").append(uri.getPort());
+                sb.append(newPath);
+                if (uri.getRawQuery() != null) sb.append("?").append(uri.getRawQuery());
+                System.out.println("[S3Service] Normalized virtual-host-style URL: " + url + " -> " + sb);
+                return sb.toString();
+            }
+        } catch (Exception e) {
+            System.out.println("[S3Service] Warning: error normalizing URL: " + e.getMessage());
+        }
+        return url;
     }
 }
