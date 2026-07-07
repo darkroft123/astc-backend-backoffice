@@ -11,6 +11,7 @@ import com.backoffice.shared.util.UuidGenerator;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -21,6 +22,8 @@ import org.mindrot.jbcrypt.BCrypt;
 
 @ApplicationScoped
 public class CreateUserUseCaseImpl implements CreateUserUseCase {
+
+    private static final Logger LOG = Logger.getLogger(CreateUserUseCaseImpl.class);
 
     @Inject
     UserRepository userRepository;
@@ -69,6 +72,8 @@ public class CreateUserUseCaseImpl implements CreateUserUseCase {
         event.setCreatedAt(utcNow());
 
         outboxRepository.persist(event);
+        LOG.infof("[OUTBOX] User CREATED event persisted: userId=%s, email=%s, eventType=%s",
+                id, user.getEmail(), "USER_CREATED");
 
         // 5. RETURN ID
         return id;

@@ -10,12 +10,15 @@ import com.backoffice.shared.util.UuidGenerator;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @ApplicationScoped
 public class DeleteUserUseCaseImpl implements DeleteUserUseCase {
+
+    private static final Logger LOG = Logger.getLogger(DeleteUserUseCaseImpl.class);
 
     @Inject
     UserRepository userRepository;
@@ -55,7 +58,17 @@ public class DeleteUserUseCaseImpl implements DeleteUserUseCase {
             throw new RuntimeException("User not found");
         }
 
-        userRepository.delete(entity); // 👈 ELIMINACIÓN REAL
+        OutboxEventEntity event = new OutboxEventEntity();
+        event.setId(UuidGenerator.generate());
+        event.setAggregateType("USER");
+        event.setAggregateId(id);
+        event.setEventType("USER_DELETED");
+        event.setPayload("{\"id\":\"" + id + "\"}");
+        event.setCreatedAt(LocalDateTime.now());
+        outboxRepository.persist(event);
+        LOG.infof("[OUTBOX] User DELETED event persisted: userId=%s", id);
+
+        userRepository.delete(entity);
 
         return true;
     }

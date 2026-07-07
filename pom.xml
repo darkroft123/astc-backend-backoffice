@@ -136,10 +136,21 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- RABBITMQ -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-messaging-rabbitmq</artifactId>
+        </dependency>
+
         <!-- SCHEDULER -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-scheduler</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-mailer</artifactId>
         </dependency>
 
     </dependencies>
@@ -155,6 +166,15 @@
 
                 <configuration>
                     <release>${java.version}</release>
+                    <fork>true</fork>
+
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.36</version>
+                        </path>
+                    </annotationProcessorPaths>
 
                     <compilerArgs>
                         <arg>-parameters</arg>
