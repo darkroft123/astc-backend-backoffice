@@ -1,4 +1,5 @@
-target/
+target/*
+!target/*-runner.jar
 .idea/
 *.iml
 .git/
