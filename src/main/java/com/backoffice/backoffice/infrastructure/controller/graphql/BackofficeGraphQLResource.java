@@ -15,8 +15,11 @@ import org.jboss.logging.Logger;
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
 import java.util.List;
+import io.smallrye.common.annotation.Blocking;
+
 @GraphQLApi
 @ApplicationScoped
+@Blocking
 public class BackofficeGraphQLResource {
 
     private static final Logger LOG = Logger.getLogger(BackofficeGraphQLResource.class);
@@ -153,7 +156,7 @@ public class BackofficeGraphQLResource {
     // =========================
     // GET USER
     // =========================
-    @Query("getUser")
+    @Query("getuser")
     @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public UserOutput getUser(@Name("id") String id) {
 
