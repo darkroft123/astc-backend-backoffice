@@ -31,7 +31,7 @@ public interface AuthClient {
     // =====================
     // QUERIES (LECTURA)
     // =====================
-    @Query("getuser")
+    @Query("getUser")
     UserOutput getUser(@Name("id") String id);
 
     @Query

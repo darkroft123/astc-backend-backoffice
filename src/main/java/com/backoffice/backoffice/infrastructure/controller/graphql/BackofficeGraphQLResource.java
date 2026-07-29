@@ -156,7 +156,7 @@ public class BackofficeGraphQLResource {
     // =========================
     // GET USER
     // =========================
-    @Query("getuser")
+    @Query("getUser")
     @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public UserOutput getUser(@Name("id") String id) {
 

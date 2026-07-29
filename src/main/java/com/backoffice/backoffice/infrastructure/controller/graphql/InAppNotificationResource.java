@@ -41,7 +41,7 @@ public class InAppNotificationResource {
                 .collect(Collectors.toList());
     }
 
-    @Query("getunreadcount")
+    @Query("getUnreadCount")
     @Description("Get count of unread notifications for a user, optionally filtered by category")
     @Blocking
     public Long getUnreadCount(
@@ -55,7 +55,7 @@ public class InAppNotificationResource {
         }
     }
 
-    @Query("getnotificationsbycategory")
+    @Query("getNotificationsByCategory")
     @Description("Get notifications for a user filtered by category with pagination")
     @Blocking
     public PaginationResponse getNotificationsByCategory(
@@ -74,7 +74,7 @@ public class InAppNotificationResource {
                         .collect(Collectors.toList()));
     }
 
-    @Mutation("readnotification")
+    @Mutation("readNotification")
     @Description("Get notification detail and mark it as read if it was unread")
     @Blocking
     public InAppNotificationResponse readNotification(
@@ -89,7 +89,7 @@ public class InAppNotificationResource {
     @Inject
     com.backoffice.backoffice.infrastructure.repository.DeviceTokenRepository deviceTokenRepository;
 
-    @Query("getunreadcountbycategory")
+    @Query("getUnreadCountByCategory")
     @Description("Get unread notification count for each category for a user")
     @Blocking
     public List<InAppNotificationCategoryUnreadCountResponse> getUnreadCountByCategory(
@@ -97,7 +97,7 @@ public class InAppNotificationResource {
         return List.of();
     }
 
-    @Mutation("registerdevice")
+    @Mutation("registerDevice")
     @Description("Register or update a user's device token for push notifications")
     @Blocking
     @jakarta.transaction.Transactional
