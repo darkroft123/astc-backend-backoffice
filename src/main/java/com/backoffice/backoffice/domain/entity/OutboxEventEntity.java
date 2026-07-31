@@ -30,6 +30,15 @@ public class OutboxEventEntity {
     @Column(name = "processed_at")
     private LocalDateTime processedAt;
 
+    @Column(name = "attempts")
+    private Integer attempts = 0;
+
+    @Column(name = "last_error", length = 500)
+    private String lastError;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status = "PENDING";
+
     // getters & setters
 
     public UUID getId() { return id; }
@@ -52,4 +61,13 @@ public class OutboxEventEntity {
 
     public LocalDateTime getProcessedAt() { return processedAt; }
     public void setProcessedAt(LocalDateTime processedAt) { this.processedAt = processedAt; }
+
+    public Integer getAttempts() { return attempts; }
+    public void setAttempts(Integer attempts) { this.attempts = attempts; }
+
+    public String getLastError() { return lastError; }
+    public void setLastError(String lastError) { this.lastError = lastError; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }
