@@ -13,14 +13,38 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
 
     private static final Logger LOG = Logger.getLogger(InAppNotificationRepository.class);
 
-    public List<InAppNotificationEntity> findByUserId(UUID userId, int page, int size) {
-        return find("userId = ?1 ORDER BY createdAt DESC", userId)
-                .page(page, size)
-                .list();
-    }
+    @SuppressWarnings("unchecked")
+    public Object[] findByUserIdWithCount(UUID userId, int page, int size) {
+        long start = System.currentTimeMillis();
+        List<Object[]> results = getEntityManager().createNativeQuery(
+                "SELECT n.id, n.notification_code, n.title, n.body, n.user_id, n.read, n.created_at, n.read_at, COUNT(*) OVER() " +
+                "FROM notification.in_app_notification n " +
+                "WHERE n.user_id = :userId " +
+                "ORDER BY n.created_at DESC")
+                .setParameter("userId", userId)
+                .setFirstResult(page * size)
+                .setMaxResults(size)
+                .getResultList();
 
-    public long countByUserId(UUID userId) {
-        return count("userId = ?1", userId);
+        long duration = System.currentTimeMillis() - start;
+        System.out.println("[PERF] findByUserIdWithCount (Native) -> duration: " + duration + " ms");
+        
+        long total = 0;
+        List<InAppNotificationEntity> items = new java.util.ArrayList<>();
+        for (Object[] row : results) {
+            if (total == 0) total = ((Number) row[8]).longValue();
+            InAppNotificationEntity e = new InAppNotificationEntity();
+            e.setId((UUID) row[0]);
+            e.setNotificationCode((String) row[1]);
+            e.setTitle((String) row[2]);
+            e.setBody((String) row[3]);
+            e.setUserId((UUID) row[4]);
+            e.setRead((Boolean) row[5]);
+            e.setCreatedAt(((java.sql.Timestamp) row[6]).toInstant());
+            if (row[7] != null) e.setReadAt(((java.sql.Timestamp) row[7]).toInstant());
+            items.add(e);
+        }
+        return new Object[]{items, total};
     }
 
     public long countUnreadByUserId(UUID userId) {
@@ -28,38 +52,52 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
     }
 
     @SuppressWarnings("unchecked")
-    public List<InAppNotificationEntity> findByUserIdAndCategory(UUID userId, String category, int page, int size) {
-        return getEntityManager().createNativeQuery(
-                "SELECT n.* FROM notification.in_app_notification n " +
+    public Object[] findByUserIdAndCategoryWithCount(UUID userId, String category, int page, int size) {
+        long start = System.currentTimeMillis();
+        List<Object[]> results = getEntityManager().createNativeQuery(
+                "SELECT n.id, n.notification_code, n.title, n.body, n.user_id, n.read, n.created_at, n.read_at, COUNT(*) OVER() " +
+                "FROM notification.in_app_notification n " +
                 "JOIN notification.notification_definition d ON n.notification_code = d.code " +
-                "WHERE n.user_id = :userId AND d.category = :category " +
-                "ORDER BY n.created_at DESC", InAppNotificationEntity.class)
+                "WHERE n.user_id = :userId AND UPPER(d.category) = :category " +
+                "ORDER BY n.created_at DESC")
                 .setParameter("userId", userId)
                 .setParameter("category", category.toUpperCase())
                 .setFirstResult(page * size)
                 .setMaxResults(size)
                 .getResultList();
-    }
 
-    public long countByUserIdAndCategory(UUID userId, String category) {
-        Number count = (Number) getEntityManager().createNativeQuery(
-                "SELECT COUNT(*) FROM notification.in_app_notification n " +
-                "JOIN notification.notification_definition d ON n.notification_code = d.code " +
-                "WHERE n.user_id = :userId AND d.category = :category")
-                .setParameter("userId", userId)
-                .setParameter("category", category.toUpperCase())
-                .getSingleResult();
-        return count.longValue();
+        long duration = System.currentTimeMillis() - start;
+        System.out.println("[PERF] findByUserIdAndCategoryWithCount (Native) -> duration: " + duration + " ms");
+        
+        long total = 0;
+        List<InAppNotificationEntity> items = new java.util.ArrayList<>();
+        for (Object[] row : results) {
+            if (total == 0) total = ((Number) row[8]).longValue();
+            InAppNotificationEntity e = new InAppNotificationEntity();
+            e.setId((UUID) row[0]);
+            e.setNotificationCode((String) row[1]);
+            e.setTitle((String) row[2]);
+            e.setBody((String) row[3]);
+            e.setUserId((UUID) row[4]);
+            e.setRead((Boolean) row[5]);
+            e.setCreatedAt(((java.sql.Timestamp) row[6]).toInstant());
+            if (row[7] != null) e.setReadAt(((java.sql.Timestamp) row[7]).toInstant());
+            items.add(e);
+        }
+        return new Object[]{items, total};
     }
 
     public long countUnreadByUserIdAndCategory(UUID userId, String category) {
+        long start = System.currentTimeMillis();
         Number count = (Number) getEntityManager().createNativeQuery(
                 "SELECT COUNT(*) FROM notification.in_app_notification n " +
                 "JOIN notification.notification_definition d ON n.notification_code = d.code " +
-                "WHERE n.user_id = :userId AND n.read = false AND d.category = :category")
+                "WHERE n.user_id = :userId AND n.read = false AND UPPER(d.category) = :category")
                 .setParameter("userId", userId)
                 .setParameter("category", category.toUpperCase())
                 .getSingleResult();
+        long duration = System.currentTimeMillis() - start;
+        System.out.println("[PERF] countUnreadByUserIdAndCategory (Native) -> duration: " + duration + " ms");
         return count.longValue();
     }
 }

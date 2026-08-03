@@ -21,24 +21,23 @@ public class ReadNotificationUseCaseImpl implements ReadNotificationUseCase {
     @Override
     @Transactional
     public InAppNotificationEntity readNotification(UUID notificationId, UUID userId) {
-        // Atomic UPDATE en DB - evita race conditions y garantiza persistencia inmediata
-        int updated = repository.update(
-                "set read = true, readAt = ?1 WHERE id = ?2 AND userId = ?3 AND read = false",
-                Instant.now(), notificationId, userId
-        );
-
-        if (updated == 1) {
-            LOG.infof("[NOTIFICATION] Marked as read: notificationId=%s, userId=%s", notificationId, userId);
-        } else {
-            InAppNotificationEntity entity = repository.findByIdOptional(notificationId)
-                    .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
-            if (!entity.getUserId().equals(userId)) {
-                throw new SecurityException("Notification does not belong to user");
-            }
-            LOG.infof("[NOTIFICATION] Already read: notificationId=%s, userId=%s", notificationId, userId);
+        long start = System.currentTimeMillis();
+        try {
+            InAppNotificationEntity entity = (InAppNotificationEntity) repository.getEntityManager().createNativeQuery(
+                    "UPDATE notification.in_app_notification " +
+                    "SET read = true, read_at = :now " +
+                    "WHERE id = :id AND user_id = :userId " +
+                    "RETURNING *", InAppNotificationEntity.class)
+                    .setParameter("now", java.sql.Timestamp.from(Instant.now()))
+                    .setParameter("id", notificationId)
+                    .setParameter("userId", userId)
+                    .getSingleResult();
+            
+            long duration = System.currentTimeMillis() - start;
+            System.out.println("[PERF] readNotification (Native RETURNING) -> duration: " + duration + " ms");
+            return entity;
+        } catch (jakarta.persistence.NoResultException e) {
+            throw new SecurityException("Notification not found or does not belong to user");
         }
-
-        return repository.findByIdOptional(notificationId)
-                .orElseThrow(() -> new IllegalArgumentException("Notification not found after update"));
     }
 }

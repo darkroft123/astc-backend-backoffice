@@ -30,15 +30,19 @@ public class InAppNotificationResource {
     @Query("getallnotifications")
     @Description("Get notifications for a user with pagination")
     @Blocking
-    public List<InAppNotificationResponse> getNotifications(
+    public PaginationResponse getNotifications(
             @Name("userId") String userId,
-            @Name("page") @DefaultValue("0") int page,
+            @Name("page") @DefaultValue("1") int page,
             @Name("size") @DefaultValue("10") int size) {
         LOG.infof("GraphQL Query GetAllNotifications: userId=%s, page=%d, size=%d", userId, page, size);
-        List<InAppNotificationEntity> entities = getNotificationsUseCase.getByUserId(UUID.fromString(userId), page, size);
-        return entities.stream()
-                .map(InAppNotificationResponse::fromEntity)
-                .collect(Collectors.toList());
+        int internalPage = Math.max(page - 1, 0);
+        Object[] result = getNotificationsUseCase.getByUserId(UUID.fromString(userId), internalPage, size);
+        List<InAppNotificationEntity> items = (List<InAppNotificationEntity>) result[0];
+        long total = (Long) result[1];
+        return new PaginationResponse(page, size, total,
+                items.stream()
+                        .map(InAppNotificationResponse::fromEntity)
+                        .collect(Collectors.toList()));
     }
 
     @Query("getUnreadCount")
@@ -66,8 +70,9 @@ public class InAppNotificationResource {
         LOG.infof("GraphQL Query GetNotificationsByCategory: userId=%s, category=%s, page=%d, size=%d", userId, category, page, size);
         int internalPage = Math.max(page - 1, 0);
         UUID userUUID = UUID.fromString(userId);
-        List<InAppNotificationEntity> items = getNotificationsUseCase.findByUserIdAndCategory(userUUID, category, internalPage, size);
-        long total = getNotificationsUseCase.countByUserIdAndCategory(userUUID, category);
+        Object[] result = getNotificationsUseCase.findByUserIdAndCategory(userUUID, category, internalPage, size);
+        List<InAppNotificationEntity> items = (List<InAppNotificationEntity>) result[0];
+        long total = (Long) result[1];
         return new PaginationResponse(page, size, total,
                 items.stream()
                         .map(InAppNotificationResponse::fromEntity)
@@ -108,22 +113,21 @@ public class InAppNotificationResource {
         LOG.infof("GraphQL Mutation RegisterDevice: userId=%s, platform=%s", userId, platform);
         UUID userUUID = UUID.fromString(userId);
         
-        com.backoffice.backoffice.domain.notification.DeviceTokenEntity existing = 
-                deviceTokenRepository.findByToken(token);
-        
-        if (existing != null) {
-            existing.setUserId(userUUID);
-            existing.setPlatform(platform.toUpperCase());
-            deviceTokenRepository.persist(existing);
-        } else {
-            com.backoffice.backoffice.domain.notification.DeviceTokenEntity newToken = 
-                    com.backoffice.backoffice.domain.notification.DeviceTokenEntity.builder()
-                            .userId(userUUID)
-                            .token(token)
-                            .platform(platform.toUpperCase())
-                            .build();
-            deviceTokenRepository.persist(newToken);
-        }
+        long start = System.currentTimeMillis();
+        deviceTokenRepository.getEntityManager().createNativeQuery(
+            "INSERT INTO notification.device_token (id, user_id, token, platform, created_at) " +
+            "VALUES (:id, :userId, :token, :platform, NOW()) " +
+            "ON CONFLICT (token) DO UPDATE SET " +
+            "user_id = EXCLUDED.user_id, " +
+            "platform = EXCLUDED.platform")
+            .setParameter("id", UUID.randomUUID())
+            .setParameter("userId", userUUID)
+            .setParameter("token", token)
+            .setParameter("platform", platform.toUpperCase())
+            .executeUpdate();
+            
+        long duration = System.currentTimeMillis() - start;
+        System.out.println("[PERF] registerDevice (Native UPSERT) -> duration: " + duration + " ms");
         return true;
     }
 }

@@ -43,7 +43,9 @@ public class OutboxEventProcessor {
         vertx.setPeriodic(5000, id -> vertx.executeBlocking(
             promise -> {
                 try {
-                    processEvents();
+                    io.quarkus.narayana.jta.QuarkusTransaction.requiringNew().run(() -> {
+                        processEvents();
+                    });
                     promise.complete();
                 } catch (Exception e) {
                     LOG.errorf(e, "Error processing outbox events");
@@ -56,90 +58,82 @@ public class OutboxEventProcessor {
 
     void processEvents() {
         List<OutboxEventEntity> events = repository.findUnprocessed(batchSize);
-        if (events.isEmpty()) {
+        if (events == null || events.isEmpty()) {
             return;
         }
 
         LOG.infof("📬 [Outbox] Found %d unprocessed outbox events to process in backoffice-service", events.size());
 
+        List<java.util.UUID> successfulIds = new java.util.ArrayList<>();
+
         for (OutboxEventEntity event : events) {
             try {
-                io.quarkus.narayana.jta.QuarkusTransaction.requiringNew().run(() -> {
-                    LOG.infof("📬 [Outbox] Processing event ID=%s, type=%s, payload=%s",
-                            event.getId(), event.getEventType(), event.getPayload());
-                    JsonObject payload = new JsonObject(event.getPayload());
-                    String userId = payload.getString("id");
+                LOG.infof("📬 [Outbox] Processing event ID=%s, type=%s, payload=%s",
+                        event.getId(), event.getEventType(), event.getPayload());
+                JsonObject payload = new JsonObject(event.getPayload());
+                String userId = payload.getString("id");
 
-                    String templateCode = mapEventType(event.getEventType());
-                    if (templateCode == null) {
-                        LOG.warnf("⚠ [Outbox] Unknown event type '%s' for outbox event %s, marking as processed",
-                                event.getEventType(), event.getId());
-                        markProcessed(event);
-                        return;
-                    }
+                String templateCode = mapEventType(event.getEventType());
+                if (templateCode == null) {
+                    LOG.warnf("⚠ [Outbox] Unknown event type '%s' for outbox event %s, marking as processed",
+                            event.getEventType(), event.getId());
+                    successfulIds.add(event.getId());
+                    continue;
+                }
 
-                    JsonObject variables = new JsonObject();
-                    variables.put("USER_ID", userId);
-                    if (payload.containsKey("email")) {
-                        variables.put("USER_EMAIL", payload.getString("email"));
-                    }
-                    if (payload.containsKey("role")) {
-                        variables.put("ROLE_NAME", payload.getString("role"));
-                    }
+                JsonObject variables = new JsonObject();
+                variables.put("USER_ID", userId);
+                if (payload.containsKey("email")) {
+                    variables.put("USER_EMAIL", payload.getString("email"));
+                }
+                if (payload.containsKey("role")) {
+                    variables.put("ROLE_NAME", payload.getString("role"));
+                }
 
-                    String toEmail = payload.getString("email", "dev-notification@astc.local");
-                    String toName = payload.getString("username", "");
+                String toEmail = payload.getString("email", "dev-notification@astc.local");
+                String toName = payload.getString("username", "");
 
-                    JsonObject msg = new JsonObject();
-                    msg.put("notificationCode", templateCode);
-                    msg.put("type", "EMAIL");
-                    msg.put("userId", userId);
-                    msg.put("toEmail", toEmail);
-                    msg.put("toName", toName);
-                    msg.put("variables", variables);
+                JsonObject msg = new JsonObject();
+                msg.put("notificationCode", templateCode);
+                msg.put("type", "EMAIL");
+                msg.put("userId", userId);
+                msg.put("toEmail", toEmail);
+                msg.put("toName", toName);
+                msg.put("variables", variables);
 
-                    LOG.infof("📬 [Outbox] Dispatching payload to RabbitMQ channel 'notification-events': %s", msg.encode());
-                    notificationEmitter.send(msg.encode());
-                    LOG.infof("✅ [Outbox] Successfully published outbox event %s (type=%s) as %s to=%s",
-                            event.getId(), event.getEventType(), templateCode, toEmail);
+                LOG.infof("📬 [Outbox] Dispatching payload to RabbitMQ channel 'notification-events': %s", msg.encode());
+                notificationEmitter.send(msg.encode());
+                LOG.infof("✅ [Outbox] Successfully published outbox event %s (type=%s) as %s to=%s",
+                        event.getId(), event.getEventType(), templateCode, toEmail);
 
-                    markProcessed(event);
-                });
+                successfulIds.add(event.getId());
             } catch (Exception e) {
                 LOG.errorf(e, "❌ [Outbox] Failed to process outbox event %s (type=%s)",
                         event.getId(), event.getEventType());
-                try {
-                    io.quarkus.narayana.jta.QuarkusTransaction.requiringNew().run(() -> markFailedAttempt(event));
-                } catch (Exception ex) {
-                    LOG.errorf(ex, "❌ [Outbox] Failed to record failed attempt for event %s", event.getId());
-                }
+                markFailedAttempt(event);
             }
+        }
+
+        if (!successfulIds.isEmpty()) {
+            repository.update("processedAt = ?1, status = 'PUBLISHED', lastError = null WHERE id IN (?2)",
+                    LocalDateTime.now(), successfulIds);
         }
     }
 
-    private void markProcessed(OutboxEventEntity event) {
-        repository.findByIdOptional(event.getId()).ifPresent(managed -> {
+    private void markFailedAttempt(OutboxEventEntity managed) {
+        int attempts = managed.getAttempts() == null ? 0 : managed.getAttempts();
+        managed.setAttempts(attempts + 1);
+        if (attempts + 1 >= maxAttempts) {
+            LOG.errorf("💀 [Outbox] Event %s exceeded max attempts (%d), marking as FAILED",
+                    managed.getId(), maxAttempts);
             managed.setProcessedAt(LocalDateTime.now());
-            managed.setLastError(null);
-            managed.setStatus("PUBLISHED");
-        });
-    }
-
-    private void markFailedAttempt(OutboxEventEntity event) {
-        repository.findByIdOptional(event.getId()).ifPresent(managed -> {
-            int attempts = managed.getAttempts() == null ? 0 : managed.getAttempts();
-            managed.setAttempts(attempts + 1);
-            if (attempts + 1 >= maxAttempts) {
-                LOG.errorf("💀 [Outbox] Event %s exceeded max attempts (%d), marking as FAILED",
-                        event.getId(), maxAttempts);
-                managed.setProcessedAt(LocalDateTime.now());
-                managed.setStatus("FAILED");
-                managed.setLastError("Exceeded max attempts");
-            } else {
-                managed.setStatus("PENDING");
-                managed.setLastError("Processing error, retry pending");
-            }
-        });
+            managed.setStatus("FAILED");
+            managed.setLastError("Exceeded max attempts");
+        } else {
+            managed.setStatus("PENDING");
+            managed.setLastError("Processing error, retry pending");
+        }
+        // Hibernate will auto-update this managed entity at flush time
     }
 
     private String mapEventType(String eventType) {

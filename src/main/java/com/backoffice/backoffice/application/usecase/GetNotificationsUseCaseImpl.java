@@ -20,9 +20,9 @@ public class GetNotificationsUseCaseImpl implements GetNotificationsUseCase {
     InAppNotificationRepository repository;
 
     @Override
-    public List<InAppNotificationEntity> getByUserId(UUID userId, int page, int size) {
+    public Object[] getByUserId(UUID userId, int page, int size) {
         LOG.infof("[NOTIFICATION] Fetching notifications for userId=%s, page=%d, size=%d", userId, page, size);
-        return repository.findByUserId(userId, page, size);
+        return repository.findByUserIdWithCount(userId, page, size);
     }
 
     @Override
@@ -33,16 +33,9 @@ public class GetNotificationsUseCaseImpl implements GetNotificationsUseCase {
     }
 
     @Override
-    public List<InAppNotificationEntity> findByUserIdAndCategory(UUID userId, String category, int page, int size) {
+    public Object[] findByUserIdAndCategory(UUID userId, String category, int page, int size) {
         LOG.infof("[NOTIFICATION] Fetching notifications by category: userId=%s, category=%s, page=%d, size=%d", userId, category, page, size);
-        return repository.findByUserIdAndCategory(userId, category, page, size);
-    }
-
-    @Override
-    public long countByUserIdAndCategory(UUID userId, String category) {
-        long count = repository.countByUserIdAndCategory(userId, category);
-        LOG.infof("[NOTIFICATION] Count by category: userId=%s, category=%s, count=%d", userId, category, count);
-        return count;
+        return repository.findByUserIdAndCategoryWithCount(userId, category, page, size);
     }
 
     @Override

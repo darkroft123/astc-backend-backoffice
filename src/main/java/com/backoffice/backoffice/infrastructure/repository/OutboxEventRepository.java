@@ -14,12 +14,18 @@ public class OutboxEventRepository implements PanacheRepositoryBase<OutboxEventE
 
     private static final Logger LOG = Logger.getLogger(OutboxEventRepository.class);
 
+    @SuppressWarnings("unchecked")
     public List<OutboxEventEntity> findUnprocessed(int limit) {
-        List<OutboxEventEntity> results = find("processedAt is null ORDER BY createdAt")
-                .page(0, limit)
-                .list();
+        List<OutboxEventEntity> results = getEntityManager().createNativeQuery(
+                "SELECT * FROM outbox_events " +
+                "WHERE processed_at IS NULL AND status = 'PENDING' " +
+                "ORDER BY created_at ASC " +
+                "LIMIT :limit FOR UPDATE SKIP LOCKED", OutboxEventEntity.class)
+                .setParameter("limit", limit)
+                .getResultList();
+        
         if (!results.isEmpty()) {
-            LOG.infof("[OUTBOX] Found %d unprocessed events in backoffice", results.size());
+            LOG.infof("[OUTBOX] Found %d unprocessed events with SKIP LOCKED in backoffice", results.size());
         }
         return results;
     }
