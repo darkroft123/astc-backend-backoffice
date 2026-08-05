@@ -92,6 +92,9 @@ public class InAppNotificationResource {
     }
 
     @Inject
+    com.backoffice.backoffice.infrastructure.repository.InAppNotificationRepository inAppNotificationRepository;
+
+    @Inject
     com.backoffice.backoffice.infrastructure.repository.DeviceTokenRepository deviceTokenRepository;
 
     @Query("getUnreadCountByCategory")
@@ -99,8 +102,19 @@ public class InAppNotificationResource {
     @Blocking
     public List<InAppNotificationCategoryUnreadCountResponse> getUnreadCountByCategory(
             @Name("userId") String userId) {
-        return List.of();
+        LOG.infof("GraphQL Query GetUnreadCountByCategory: userId=%s", userId);
+        UUID userUUID = UUID.fromString(userId);
+        List<Object[]> rows = inAppNotificationRepository.countUnreadGroupedByCategory(userUUID);
+        List<InAppNotificationCategoryUnreadCountResponse> list = new java.util.ArrayList<>();
+        for (Object[] row : rows) {
+            list.add(InAppNotificationCategoryUnreadCountResponse.builder()
+                    .category((String) row[0])
+                    .count(((Number) row[1]).longValue())
+                    .build());
+        }
+        return list;
     }
+
 
     @Mutation("registerDevice")
     @Description("Register or update a user's device token for push notifications")

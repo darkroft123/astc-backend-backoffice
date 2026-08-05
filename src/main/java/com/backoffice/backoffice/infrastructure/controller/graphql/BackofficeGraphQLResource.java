@@ -145,10 +145,10 @@ public class BackofficeGraphQLResource {
     // LIST USERS
     // =========================
     @Query
-    @RolesAllowed({"ADMIN", "PROJECT_MANAGER"})
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public List<UserOutput> listUsers() {
 
-        authContext.assertBackofficeOrProjectManager();
+        authContext.assertBackofficeOrProjectManagerOrTeamMember();
 
         return authClient.listUsers();
     }

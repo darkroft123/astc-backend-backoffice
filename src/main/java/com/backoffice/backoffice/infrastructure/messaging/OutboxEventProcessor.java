@@ -14,6 +14,7 @@ import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -56,6 +57,7 @@ public class OutboxEventProcessor {
         ));
     }
 
+    @ActivateRequestContext
     void processEvents() {
         List<OutboxEventEntity> events = repository.findUnprocessed(batchSize);
         if (events == null || events.isEmpty()) {

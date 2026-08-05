@@ -100,4 +100,19 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
         System.out.println("[PERF] countUnreadByUserIdAndCategory (Native) -> duration: " + duration + " ms");
         return count.longValue();
     }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> countUnreadGroupedByCategory(UUID userId) {
+        long start = System.currentTimeMillis();
+        List<Object[]> results = getEntityManager().createNativeQuery(
+                "SELECT d.category, COUNT(n.id) FROM notification.in_app_notification n " +
+                "JOIN notification.notification_definition d ON n.notification_code = d.code " +
+                "WHERE n.user_id = :userId AND n.read = false " +
+                "GROUP BY d.category")
+                .setParameter("userId", userId)
+                .getResultList();
+        long duration = System.currentTimeMillis() - start;
+        System.out.println("[PERF] countUnreadGroupedByCategory (Native) -> duration: " + duration + " ms");
+        return results;
+    }
 }
