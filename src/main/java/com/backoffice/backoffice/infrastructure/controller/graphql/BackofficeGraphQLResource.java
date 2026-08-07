@@ -16,6 +16,9 @@ import java.io.ByteArrayInputStream;
 import java.util.Base64;
 import java.util.List;
 import io.smallrye.common.annotation.Blocking;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import io.vertx.core.json.JsonObject;
 
 @GraphQLApi
 @ApplicationScoped
@@ -32,6 +35,10 @@ public class BackofficeGraphQLResource {
 
     @Inject
     S3StorageAdapter s3StorageAdapter;
+
+    @Inject
+    @Channel("user-events")
+    Emitter<String> userEventsEmitter;
 
     // =========================
     // CREATE USER
@@ -105,6 +112,14 @@ public class BackofficeGraphQLResource {
             LOG.info("➡️ [Backoffice Backend] Calling auth-service createUser API...");
             CreateUserResponse response = authClient.createUser(input);
 
+            if (response != null && response.getId() != null) {
+                JsonObject event = new JsonObject();
+                event.put("eventType", "USER_CREATED");
+                event.put("userId", response.getId());
+                userEventsEmitter.send(event.encode());
+                LOG.infof("📢 [RabbitMQ] Broadcasted USER_CREATED event for: %s", response.getId());
+            }
+
             LOG.info("📤 [Backoffice Backend] Response received from auth-service:");
             if (response != null) {
                 LOG.info("  Created User ID: " + response.getId());
@@ -177,7 +192,15 @@ public class BackofficeGraphQLResource {
         authContext.assertBackoffice();
 
         try {
-            return authClient.editUser(id, input);
+            UserOutput response = authClient.editUser(id, input);
+            if (response != null && response.getId() != null) {
+                JsonObject event = new JsonObject();
+                event.put("eventType", "USER_UPDATED");
+                event.put("userId", response.getId().toString());
+                userEventsEmitter.send(event.encode());
+                LOG.infof("📢 [RabbitMQ] Broadcasted USER_UPDATED event for: %s", response.getId());
+            }
+            return response;
         } catch (io.smallrye.graphql.client.GraphQLClientException e) {
             LOG.error("💥 [Backoffice Backend] GraphQL client error calling auth-service on editUser: " + e.getMessage());
             if (e.getErrors() != null && !e.getErrors().isEmpty()) {
@@ -188,16 +211,24 @@ public class BackofficeGraphQLResource {
             throw e;
         }
     }
-
+ 
     // =========================
     // DELETE USER
     // =========================
     @Mutation
     @RolesAllowed({"ADMIN"})
     public Boolean deleteUser(@Name("id") String id) {
-
+ 
         authContext.assertBackoffice();
-
-        return authClient.deleteUser(id);
+ 
+        Boolean response = authClient.deleteUser(id);
+        if (response != null && response) {
+            JsonObject event = new JsonObject();
+            event.put("eventType", "USER_DELETED");
+            event.put("userId", id);
+            userEventsEmitter.send(event.encode());
+            LOG.infof("📢 [RabbitMQ] Broadcasted USER_DELETED event for: %s", id);
+        }
+        return response;
     }
 }
