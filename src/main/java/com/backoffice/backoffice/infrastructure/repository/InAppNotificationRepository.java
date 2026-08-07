@@ -80,8 +80,24 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
             e.setBody((String) row[3]);
             e.setUserId((UUID) row[4]);
             e.setRead((Boolean) row[5]);
-            e.setCreatedAt(((java.sql.Timestamp) row[6]).toInstant());
-            if (row[7] != null) e.setReadAt(((java.sql.Timestamp) row[7]).toInstant());
+
+            if (row[6] instanceof java.sql.Timestamp) {
+                e.setCreatedAt(((java.sql.Timestamp) row[6]).toInstant());
+            } else if (row[6] instanceof java.time.LocalDateTime) {
+                e.setCreatedAt(((java.time.LocalDateTime) row[6]).atZone(java.time.ZoneId.systemDefault()).toInstant());
+            } else if (row[6] instanceof java.time.OffsetDateTime) {
+                e.setCreatedAt(((java.time.OffsetDateTime) row[6]).toInstant());
+            } else if (row[6] != null) {
+                e.setCreatedAt(java.time.Instant.parse(row[6].toString()));
+            }
+
+            if (row[7] instanceof java.sql.Timestamp) {
+                e.setReadAt(((java.sql.Timestamp) row[7]).toInstant());
+            } else if (row[7] instanceof java.time.LocalDateTime) {
+                e.setReadAt(((java.time.LocalDateTime) row[7]).atZone(java.time.ZoneId.systemDefault()).toInstant());
+            } else if (row[7] instanceof java.time.OffsetDateTime) {
+                e.setReadAt(((java.time.OffsetDateTime) row[7]).toInstant());
+            }
             items.add(e);
         }
         return new Object[]{items, total};
