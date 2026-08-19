@@ -2,23 +2,45 @@ import { parse } from 'graphql';
 
 export const typeDefs = parse(/* GraphQL */ `
   extend schema
-    @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])
+    @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable"])
+
+  scalar BigInteger
+  scalar DateTime
 
   type Query {
-    ListUsers(filter: ListUsersFilterInput): ListUsersOutput
-    GetUser(id: ID!): UserOutput
+    listUsers: [UserOutput]
+    getUser(id: String): UserOutput
+    getallnotifications(userId: String, page: Int, size: Int): PaginationResponse
+    getNotificationsByCategory(userId: String, category: String, page: Int, size: Int): PaginationResponse
+    getUnreadCount(userId: String, category: String): BigInteger
+    getUnreadCountByCategory(userId: String): [InAppNotificationCategoryUnreadCount]
   }
 
   type Mutation {
-    createUser(input: CreateUserInput!): UserOutput
-    editUser(id: ID!, input: EditUserInput!): UserOutput
-    deleteUser(id: ID!): Boolean!
+    createUser(input: CreateUserInput): CreateUserResponse
+    editUser(id: String, input: EditUserInput): UserOutput
+    deleteUser(id: String): Boolean
+    registerDevice(userId: String, token: String, platform: String): Boolean
+    readNotification(notificationId: String, userId: String): InAppNotification
   }
 
   # =========================
   # USER ENTITY (FEDERATION)
   # =========================
   type UserOutput @key(fields: "id") {
+    id: ID!
+    username: String @shareable
+    email: String @shareable
+    firstName: String @shareable
+    lastName: String @shareable
+    phone: String @shareable
+    roleId: String @shareable
+    avatarUrl: String @shareable
+    roleCode: String @shareable
+    roleName: String @shareable
+  }
+
+  type CreateUserResponse @shareable {
     id: ID!
     username: String
     email: String
@@ -32,53 +54,55 @@ export const typeDefs = parse(/* GraphQL */ `
   }
 
   # =========================
-  # LIST OUTPUT
+  # NOTIFICATIONS
   # =========================
-  type ListUsersOutput {
-    data: [UserOutput]
-    pageInfo: PageInfoOutput
+  type InAppNotification @shareable {
+    id: String
+    userId: String
+    title: String
+    body: String
+    notificationCode: String
+    icon: String
+    color: String
+    actionLink: String
+    read: Boolean!
+    createdAt: DateTime
   }
 
-  type PageInfoOutput {
-    page: Int
-    size: Int
-    totalElements: Int
-    totalPages: Int
+  type PaginationResponse @shareable {
+    items: [InAppNotification]
+    page: Int!
+    size: Int!
+    total: BigInteger!
+  }
+
+  type InAppNotificationCategoryUnreadCount @shareable {
+    category: String
+    count: Int!
   }
 
   # =========================
   # INPUTS
   # =========================
   input CreateUserInput {
-    username: String!
-    email: String!
-    password: String!
+    username: String
+    email: String
+    password: String
     firstName: String
     lastName: String
     phone: String
-    roleId: String!
+    roleId: String
     avatarUrl: String
   }
 
   input EditUserInput {
     username: String
     email: String
+    password: String
     firstName: String
     lastName: String
     phone: String
     roleId: String
     avatarUrl: String
-  }
-
-  input DeleteUserInput {
-    id: ID!
-  }
-
-  input ListUsersFilterInput {
-    username: String
-    email: String
-    roleId: String
-    page: Int
-    size: Int
   }
 `);

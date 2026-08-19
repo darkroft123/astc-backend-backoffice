@@ -14,6 +14,7 @@ import java.util.UUID;
 public class InAppNotificationResponse {
 
     private UUID id;
+    private UUID userId;
     private String notificationCode;
     private String title;
     private String body;
@@ -29,6 +30,7 @@ public class InAppNotificationResponse {
         }
         return InAppNotificationResponse.builder()
                 .id(entity.getId())
+                .userId(entity.getUserId())
                 .notificationCode(entity.getNotificationCode())
                 .title(entity.getTitle())
                 .body(entity.getBody())
