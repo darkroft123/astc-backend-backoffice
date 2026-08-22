@@ -150,6 +150,12 @@ mutation {
 ./mvnw package -Pnative
 ```
 
+## Migraciones
+
+Las migraciones se ejecutan automáticamente con Liquibase al iniciar el servicio (contenedor: liquibase-backoffice).
+
+Ubicación: `services/astc-db-backoffice/migration/changelog/`
+
 ## Roles del sistema
 
 | Código | Nombre |

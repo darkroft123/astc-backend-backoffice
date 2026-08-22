@@ -102,12 +102,12 @@ Reglas de seguridad:
 
 ================================================================================
 
-🗄️ BASE DE DATOS (POSTGRESQL)
+🗄️ BASE DE DATOS (POSTGRESQL + LIQUIBASE)
 ================================================================================
 
 Propiedades:
-- Base de datos independiente del servicio
-- Migraciones gestionadas con Flyway
+- Base de datos independiente del servicio (schema: astc_backoffice)
+- Migraciones gestionadas con Liquibase (contenedor: liquibase-backoffice)
 - Sin dependencias de otros microservicios
 
 --------------------------------------------------------------------------------
