@@ -40,6 +40,10 @@ public class BackofficeGraphQLResource {
     @Channel("user-events")
     Emitter<String> userEventsEmitter;
 
+    @Inject
+    @Channel("notification-events")
+    Emitter<String> notificationEmitter;
+
     // =========================
     // CREATE USER
     // =========================
@@ -118,6 +122,7 @@ public class BackofficeGraphQLResource {
                 event.put("userId", response.getId());
                 userEventsEmitter.send(event.encode());
                 LOG.infof("📢 [RabbitMQ] Broadcasted USER_CREATED event for: %s", response.getId());
+                notifyUserCreated(response, input);
             }
 
             LOG.info("📤 [Backoffice Backend] Response received from auth-service:");
@@ -230,5 +235,79 @@ public class BackofficeGraphQLResource {
             LOG.infof("📢 [RabbitMQ] Broadcasted USER_DELETED event for: %s", id);
         }
         return response;
+    }
+
+    // =========================
+    // NOTIFICACIONES AL CREAR USUARIO
+    // =========================
+
+    private void notifyUserCreated(CreateUserResponse response, CreateUserInput input) {
+        try {
+            List<UserOutput> allUsers = authClient.listUsers();
+
+            UserOutput newUser = null;
+            UserOutput creador = null;
+            java.util.UUID creatorId = authContext.getUserId();
+            for (UserOutput u : allUsers) {
+                if (u.getId() == null) continue;
+                if (response.getId() != null && u.getId().toString().equals(response.getId())) {
+                    newUser = u;
+                }
+                if (creatorId != null && u.getId().equals(creatorId)) {
+                    creador = u;
+                }
+            }
+
+            String fullName = (newUser != null && newUser.getFullName() != null && !newUser.getFullName().isBlank())
+                    ? newUser.getFullName()
+                    : ((input.getFirstName() + " " + input.getLastName()).trim());
+            String roleDisplay = (newUser != null && newUser.getRoleName() != null) ? newUser.getRoleName()
+                    : (newUser != null && newUser.getRoleCode() != null ? newUser.getRoleCode() : "usuario");
+            String password = (input.getPassword() != null && !input.getPassword().isBlank())
+                    ? input.getPassword() : "(oculta)";
+
+            // 1. Credenciales al nuevo usuario
+            JsonObject varsUser = new JsonObject()
+                    .put("USERNAME", response.getUsername())
+                    .put("EMAIL", response.getEmail())
+                    .put("PASSWORD", password)
+                    .put("ROLE_NAME", roleDisplay);
+            sendEmailNotification("ASB000101", response.getId(), response.getEmail(), fullName, varsUser);
+
+            // 2. Aviso SOLO al admin que creo el usuario (nada de difusion masiva)
+            int avisos = 0;
+            if (creador != null && creador.getEmail() != null && creador.getId() != null
+                    && !creador.getEmail().equalsIgnoreCase(response.getEmail())) {
+                JsonObject varsAdmin = new JsonObject()
+                        .put("NEW_USER_NAME", fullName)
+                        .put("NEW_USER_EMAIL", response.getEmail())
+                        .put("NEW_USER_ROLE", roleDisplay)
+                        .put("CREATED_BY", authContext.getEmail());
+                sendEmailNotification("ASB000102", creador.getId().toString(), creador.getEmail(),
+                        creador.getFullName(), varsAdmin);
+                avisos = 1;
+            }
+
+            LOG.infof("📧 [Notifications] USER_CREATED notifications queued: 1 credentials email to %s + %d notice to creator",
+                    response.getEmail(), avisos);
+        } catch (Exception e) {
+            LOG.error("❌ [Notifications] Failed to queue USER_CREATED notifications (user creation is NOT affected)", e);
+        }
+    }
+
+    private void sendEmailNotification(String code, String userId, String toEmail, String toName, JsonObject variables) {
+        try {
+            JsonObject message = new JsonObject()
+                    .put("notificationCode", code)
+                    .put("type", "USER_CREATED")
+                    .put("userId", userId)
+                    .put("toEmail", toEmail)
+                    .put("toName", toName == null ? "" : toName)
+                    .put("variables", variables);
+            notificationEmitter.send(message.encode());
+            LOG.infof("📧 [Notifications] Queued %s -> %s", code, toEmail);
+        } catch (Exception e) {
+            LOG.errorf(e, "❌ [Notifications] Failed to queue %s -> %s", code, toEmail);
+        }
     }
 }
