@@ -4,15 +4,12 @@ export const typeDefs = parse(/* GraphQL */ `
   extend schema
     @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable"])
 
-  scalar BigInteger
-  scalar DateTime
-
   type Query {
     listUsers: [UserOutput]
     getUser(id: String): UserOutput
     getallnotifications(userId: String, page: Int, size: Int): PaginationResponse
     getNotificationsByCategory(userId: String, category: String, page: Int, size: Int): PaginationResponse
-    getUnreadCount(userId: String, category: String): BigInteger
+    getUnreadCount(userId: String, category: String): Int
     getUnreadCountByCategory(userId: String): [InAppNotificationCategoryUnreadCount]
   }
 
@@ -22,6 +19,7 @@ export const typeDefs = parse(/* GraphQL */ `
     deleteUser(id: String): Boolean
     registerDevice(userId: String, token: String, platform: String): Boolean
     readNotification(notificationId: String, userId: String): InAppNotification
+    deleteNotification(notificationId: String, userId: String): Boolean
   }
 
   # =========================
@@ -66,14 +64,14 @@ export const typeDefs = parse(/* GraphQL */ `
     color: String
     actionLink: String
     read: Boolean!
-    createdAt: DateTime
+    createdAt: String
   }
 
   type PaginationResponse @shareable {
     items: [InAppNotification]
     page: Int!
     size: Int!
-    total: BigInteger!
+    total: Int!
   }
 
   type InAppNotificationCategoryUnreadCount @shareable {

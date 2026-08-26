@@ -13,6 +13,30 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
 
     private static final Logger LOG = Logger.getLogger(InAppNotificationRepository.class);
 
+    private static UUID toUUID(Object val) {
+        if (val == null) return null;
+        if (val instanceof UUID) return (UUID) val;
+        try {
+            return UUID.fromString(val.toString());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static java.time.Instant toInstant(Object val) {
+        if (val == null) return null;
+        if (val instanceof java.time.Instant) return (java.time.Instant) val;
+        if (val instanceof java.sql.Timestamp) return ((java.sql.Timestamp) val).toInstant();
+        if (val instanceof java.time.LocalDateTime) return ((java.time.LocalDateTime) val).atZone(java.time.ZoneId.systemDefault()).toInstant();
+        if (val instanceof java.time.OffsetDateTime) return ((java.time.OffsetDateTime) val).toInstant();
+        if (val instanceof java.util.Date) return ((java.util.Date) val).toInstant();
+        try {
+            return java.time.Instant.parse(val.toString());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public Object[] findByUserIdWithCount(UUID userId, int page, int size) {
         long start = System.currentTimeMillis();
@@ -32,16 +56,16 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
         long total = 0;
         List<InAppNotificationEntity> items = new java.util.ArrayList<>();
         for (Object[] row : results) {
-            if (total == 0) total = ((Number) row[8]).longValue();
+            if (total == 0 && row[8] != null) total = ((Number) row[8]).longValue();
             InAppNotificationEntity e = new InAppNotificationEntity();
-            e.setId((UUID) row[0]);
+            e.setId(toUUID(row[0]));
             e.setNotificationCode((String) row[1]);
             e.setTitle((String) row[2]);
             e.setBody((String) row[3]);
-            e.setUserId((UUID) row[4]);
-            e.setRead((Boolean) row[5]);
-            e.setCreatedAt(((java.sql.Timestamp) row[6]).toInstant());
-            if (row[7] != null) e.setReadAt(((java.sql.Timestamp) row[7]).toInstant());
+            e.setUserId(toUUID(row[4]));
+            e.setRead(row[5] != null && (Boolean) row[5]);
+            e.setCreatedAt(toInstant(row[6]));
+            e.setReadAt(toInstant(row[7]));
             items.add(e);
         }
         return new Object[]{items, total};
@@ -72,32 +96,16 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
         long total = 0;
         List<InAppNotificationEntity> items = new java.util.ArrayList<>();
         for (Object[] row : results) {
-            if (total == 0) total = ((Number) row[8]).longValue();
+            if (total == 0 && row[8] != null) total = ((Number) row[8]).longValue();
             InAppNotificationEntity e = new InAppNotificationEntity();
-            e.setId((UUID) row[0]);
+            e.setId(toUUID(row[0]));
             e.setNotificationCode((String) row[1]);
             e.setTitle((String) row[2]);
             e.setBody((String) row[3]);
-            e.setUserId((UUID) row[4]);
-            e.setRead((Boolean) row[5]);
-
-            if (row[6] instanceof java.sql.Timestamp) {
-                e.setCreatedAt(((java.sql.Timestamp) row[6]).toInstant());
-            } else if (row[6] instanceof java.time.LocalDateTime) {
-                e.setCreatedAt(((java.time.LocalDateTime) row[6]).atZone(java.time.ZoneId.systemDefault()).toInstant());
-            } else if (row[6] instanceof java.time.OffsetDateTime) {
-                e.setCreatedAt(((java.time.OffsetDateTime) row[6]).toInstant());
-            } else if (row[6] != null) {
-                e.setCreatedAt(java.time.Instant.parse(row[6].toString()));
-            }
-
-            if (row[7] instanceof java.sql.Timestamp) {
-                e.setReadAt(((java.sql.Timestamp) row[7]).toInstant());
-            } else if (row[7] instanceof java.time.LocalDateTime) {
-                e.setReadAt(((java.time.LocalDateTime) row[7]).atZone(java.time.ZoneId.systemDefault()).toInstant());
-            } else if (row[7] instanceof java.time.OffsetDateTime) {
-                e.setReadAt(((java.time.OffsetDateTime) row[7]).toInstant());
-            }
+            e.setUserId(toUUID(row[4]));
+            e.setRead(row[5] != null && (Boolean) row[5]);
+            e.setCreatedAt(toInstant(row[6]));
+            e.setReadAt(toInstant(row[7]));
             items.add(e);
         }
         return new Object[]{items, total};
