@@ -91,6 +91,43 @@ public class InAppNotificationResource {
         return InAppNotificationResponse.fromEntity(entity);
     }
 
+    @Mutation("deleteNotification")
+    @Description("Delete a notification by id for a specific user")
+    @Blocking
+    @jakarta.transaction.Transactional
+    public Boolean deleteNotification(
+            @Name("notificationId") String notificationId,
+            @Name("userId") String userId) {
+        LOG.infof("GraphQL Mutation DeleteNotification: notificationId=%s, userId=%s", notificationId, userId);
+        try {
+            boolean deleted = inAppNotificationRepository.deleteByIdAndUserId(
+                    UUID.fromString(notificationId), UUID.fromString(userId));
+            if (deleted) {
+                inAppNotificationRepository.getEntityManager().flush();
+            }
+            return deleted;
+        } catch (Exception e) {
+            LOG.errorf(e, "Error deleting notification %s for user %s", notificationId, userId);
+            return false;
+        }
+    }
+
+    @Mutation("markAllNotificationsAsRead")
+    @Description("Mark all unread notifications as read for a specific user")
+    @Blocking
+    @jakarta.transaction.Transactional
+    public Boolean markAllNotificationsAsRead(@Name("userId") String userId) {
+        LOG.infof("GraphQL Mutation MarkAllNotificationsAsRead: userId=%s", userId);
+        try {
+            int updated = inAppNotificationRepository.markAllAsReadByUserId(UUID.fromString(userId));
+            LOG.infof("Marked %d notifications as read for user %s", updated, userId);
+            return true;
+        } catch (Exception e) {
+            LOG.errorf(e, "Error marking all notifications as read for user %s", userId);
+            return false;
+        }
+    }
+
     @Inject
     com.backoffice.backoffice.infrastructure.repository.InAppNotificationRepository inAppNotificationRepository;
 

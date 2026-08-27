@@ -72,7 +72,9 @@ export const resolvers = {
     editUser: forward('mutation'),
     deleteUser: forward('mutation'),
     registerDevice: forward('mutation'),
-    readNotification: forward('mutation')
+    readNotification: forward('mutation'),
+    deleteNotification: forward('mutation'),
+    markAllNotificationsAsRead: forward('mutation')
   },
 
   UserOutput: {

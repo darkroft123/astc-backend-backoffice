@@ -15,6 +15,7 @@ import org.jboss.logging.Logger;
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 import io.smallrye.common.annotation.Blocking;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
@@ -68,6 +69,9 @@ public class BackofficeGraphQLResource {
 
         String key = null;
         try {
+            UUID userId = UUID.randomUUID();
+            input.setId(userId.toString());
+
             if (input.getAvatarUrl() != null && !input.getAvatarUrl().isBlank()) {
                 byte[] imageBytes;
                 try {
@@ -77,10 +81,13 @@ public class BackofficeGraphQLResource {
                     throw decErr;
                 }
 
-                String filename = input.getUsername() + ".png";
-                
-                LOG.info("[MinIO] Upload requested");
+                String fileUuid = UUID.randomUUID().toString();
+                String folder = "document/private/user/" + userId + "/photo";
+                String filename = fileUuid + ".png";
+
+                LOG.info("[MinIO] Upload requested for createUser");
                 LOG.info("[MinIO] Bucket: " + s3StorageAdapter.getBucket());
+                LOG.info("[MinIO] Folder: " + folder);
                 LOG.info("[MinIO] Filename: " + filename);
                 LOG.info("[MinIO] Size: " + imageBytes.length + " bytes");
                 LOG.info("[MinIO] Content-Type: image/png");
@@ -88,7 +95,7 @@ public class BackofficeGraphQLResource {
                 long startTime = System.currentTimeMillis();
                 try {
                     key = s3StorageAdapter.upload(
-                            "avatars",
+                            folder,
                             filename,
                             new ByteArrayInputStream(imageBytes),
                             imageBytes.length,
@@ -96,7 +103,7 @@ public class BackofficeGraphQLResource {
                     );
                     
                     long duration = System.currentTimeMillis() - startTime;
-                    String presignedUrl = s3StorageAdapter.generatePresignedUrl(key, 525600);
+                    String presignedUrl = s3StorageAdapter.generatePresignedUrl(key, 1440);
                     
                     LOG.info("[MinIO] Upload successful");
                     LOG.info("[MinIO] Object key: " + key);
@@ -170,7 +177,15 @@ public class BackofficeGraphQLResource {
 
         authContext.assertBackofficeOrProjectManagerOrTeamMember();
 
-        return authClient.listUsers();
+        List<UserOutput> users = authClient.listUsers();
+        if (users != null) {
+            for (UserOutput u : users) {
+                if (u.getAvatarUrl() != null && !u.getAvatarUrl().isBlank()) {
+                    u.setAvatarUrl(s3StorageAdapter.getPublicUrl(u.getAvatarUrl()));
+                }
+            }
+        }
+        return users;
     }
 
     // =========================
@@ -182,7 +197,11 @@ public class BackofficeGraphQLResource {
 
         authContext.assertBackofficeOrProjectManagerOrTeamMember();
 
-        return authClient.getUser(id);
+        UserOutput u = authClient.getUser(id);
+        if (u != null && u.getAvatarUrl() != null && !u.getAvatarUrl().isBlank()) {
+            u.setAvatarUrl(s3StorageAdapter.getPublicUrl(u.getAvatarUrl()));
+        }
+        return u;
     }
 
     // =========================
@@ -196,7 +215,43 @@ public class BackofficeGraphQLResource {
 
         authContext.assertBackoffice();
 
+        String key = null;
         try {
+            if (input.getAvatarUrl() != null && !input.getAvatarUrl().isBlank() && !input.getAvatarUrl().startsWith("http")) {
+                byte[] imageBytes;
+                try {
+                    imageBytes = Base64.getDecoder().decode(input.getAvatarUrl());
+                } catch (IllegalArgumentException decErr) {
+                    LOG.error("❌ [Backoffice Backend] Failed to decode base64 avatar image string on editUser", decErr);
+                    throw decErr;
+                }
+
+                String fileUuid = UUID.randomUUID().toString();
+                String folder = "document/private/user/" + id + "/photo";
+                String filename = fileUuid + ".png";
+
+                LOG.info("[MinIO] Upload requested for editUser");
+                LOG.info("[MinIO] Bucket: " + s3StorageAdapter.getBucket());
+                LOG.info("[MinIO] Folder: " + folder);
+                LOG.info("[MinIO] Filename: " + filename);
+                LOG.info("[MinIO] Size: " + imageBytes.length + " bytes");
+
+                long startTime = System.currentTimeMillis();
+                key = s3StorageAdapter.upload(
+                        folder,
+                        filename,
+                        new ByteArrayInputStream(imageBytes),
+                        imageBytes.length,
+                        "image/png"
+                );
+
+                long duration = System.currentTimeMillis() - startTime;
+                String presignedUrl = s3StorageAdapter.generatePresignedUrl(key, 1440);
+                LOG.info("[MinIO] Upload successful for editUser | duration: " + duration + " ms");
+                LOG.info("[MinIO] Presigned URL: " + presignedUrl);
+                input.setAvatarUrl(presignedUrl);
+            }
+
             UserOutput response = authClient.editUser(id, input);
             if (response != null && response.getId() != null) {
                 JsonObject event = new JsonObject();
@@ -204,14 +259,26 @@ public class BackofficeGraphQLResource {
                 event.put("userId", response.getId().toString());
                 userEventsEmitter.send(event.encode());
                 LOG.infof("📢 [RabbitMQ] Broadcasted USER_UPDATED event for: %s", response.getId());
+                notifyUserEdited(response, input);
             }
             return response;
         } catch (io.smallrye.graphql.client.GraphQLClientException e) {
             LOG.error("💥 [Backoffice Backend] GraphQL client error calling auth-service on editUser: " + e.getMessage());
+            if (key != null) {
+                LOG.warn("[EditUser] Cleaning up orphaned avatar...");
+                s3StorageAdapter.delete(key);
+            }
             if (e.getErrors() != null && !e.getErrors().isEmpty()) {
                 String errorMsg = e.getErrors().get(0).getMessage();
                 LOG.error("💥 [Backoffice Backend] Surfacing friendly error on editUser: " + errorMsg);
                 throw new org.eclipse.microprofile.graphql.GraphQLException(errorMsg);
+            }
+            throw e;
+        } catch (Exception e) {
+            LOG.error("💥 [Backoffice Backend] Exception occurred during editUser flow", e);
+            if (key != null) {
+                LOG.warn("[EditUser] Cleaning up orphaned avatar...");
+                s3StorageAdapter.delete(key);
             }
             throw e;
         }
@@ -225,7 +292,9 @@ public class BackofficeGraphQLResource {
     public Boolean deleteUser(@Name("id") String id) {
  
         authContext.assertBackoffice();
- 
+
+        UserOutput userToDelete = authClient.getUser(id);
+
         Boolean response = authClient.deleteUser(id);
         if (response != null && response) {
             JsonObject event = new JsonObject();
@@ -233,6 +302,7 @@ public class BackofficeGraphQLResource {
             event.put("userId", id);
             userEventsEmitter.send(event.encode());
             LOG.infof("📢 [RabbitMQ] Broadcasted USER_DELETED event for: %s", id);
+            notifyUserDeleted(userToDelete);
         }
         return response;
     }
@@ -272,7 +342,7 @@ public class BackofficeGraphQLResource {
                     .put("EMAIL", response.getEmail())
                     .put("PASSWORD", password)
                     .put("ROLE_NAME", roleDisplay);
-            sendEmailNotification("ASB000101", response.getId(), response.getEmail(), fullName, varsUser);
+            sendEmailNotification("ASB000101", "USER_CREATED", response.getId(), response.getEmail(), fullName, varsUser);
 
             // 2. Aviso SOLO al admin que creo el usuario (nada de difusion masiva)
             int avisos = 0;
@@ -283,7 +353,7 @@ public class BackofficeGraphQLResource {
                         .put("NEW_USER_EMAIL", response.getEmail())
                         .put("NEW_USER_ROLE", roleDisplay)
                         .put("CREATED_BY", authContext.getEmail());
-                sendEmailNotification("ASB000102", creador.getId().toString(), creador.getEmail(),
+                sendEmailNotification("ASB000102", "USER_CREATED", creador.getId().toString(), creador.getEmail(),
                         creador.getFullName(), varsAdmin);
                 avisos = 1;
             }
@@ -295,11 +365,11 @@ public class BackofficeGraphQLResource {
         }
     }
 
-    private void sendEmailNotification(String code, String userId, String toEmail, String toName, JsonObject variables) {
+    private void sendEmailNotification(String code, String type, String userId, String toEmail, String toName, JsonObject variables) {
         try {
             JsonObject message = new JsonObject()
                     .put("notificationCode", code)
-                    .put("type", "USER_CREATED")
+                    .put("type", type)
                     .put("userId", userId)
                     .put("toEmail", toEmail)
                     .put("toName", toName == null ? "" : toName)
@@ -308,6 +378,63 @@ public class BackofficeGraphQLResource {
             LOG.infof("📧 [Notifications] Queued %s -> %s", code, toEmail);
         } catch (Exception e) {
             LOG.errorf(e, "❌ [Notifications] Failed to queue %s -> %s", code, toEmail);
+        }
+    }
+
+    // =========================
+    // NOTIFICACIONES AL EDITAR USUARIO
+    // =========================
+
+    private void notifyUserEdited(UserOutput editedUser, EditUserInput input) {
+        try {
+            if (editedUser == null || editedUser.getEmail() == null) {
+                LOG.warn("📧 [Notifications] Cannot send USER_UPDATED: no user or email");
+                return;
+            }
+
+            String fullName = (editedUser.getFullName() != null && !editedUser.getFullName().isBlank())
+                    ? editedUser.getFullName()
+                    : ((input.getFirstName() != null ? input.getFirstName() : "") + " " + (input.getLastName() != null ? input.getLastName() : "")).trim();
+            String roleDisplay = (editedUser.getRoleName() != null) ? editedUser.getRoleName()
+                    : (editedUser.getRoleCode() != null ? editedUser.getRoleCode() : "usuario");
+
+            JsonObject vars = new JsonObject()
+                    .put("USER_ID", editedUser.getId().toString())
+                    .put("USER_EMAIL", editedUser.getEmail())
+                    .put("ROLE_NAME", roleDisplay);
+            sendEmailNotification("ASB000002", "USER_UPDATED", editedUser.getId().toString(),
+                    editedUser.getEmail(), fullName, vars);
+
+            LOG.infof("📧 [Notifications] USER_UPDATED notification queued for %s", editedUser.getEmail());
+        } catch (Exception e) {
+            LOG.error("❌ [Notifications] Failed to queue USER_UPDATED notification (user edit is NOT affected)", e);
+        }
+    }
+
+    // =========================
+    // NOTIFICACIONES AL BORRAR USUARIO
+    // =========================
+
+    private void notifyUserDeleted(UserOutput deletedUser) {
+        try {
+            if (deletedUser == null || deletedUser.getEmail() == null) {
+                LOG.warn("📧 [Notifications] Cannot send USER_DELETED: no user or email");
+                return;
+            }
+
+            String fullName = (deletedUser.getFullName() != null && !deletedUser.getFullName().isBlank())
+                    ? deletedUser.getFullName() : deletedUser.getUsername();
+
+            JsonObject vars = new JsonObject()
+                    .put("USER_ID", deletedUser.getId().toString())
+                    .put("USER_EMAIL", deletedUser.getEmail())
+                    .put("USER_NAME", fullName);
+            sendEmailNotification("ASB000004", "USER_DELETED", deletedUser.getId().toString(),
+                    deletedUser.getEmail(), fullName, vars);
+
+            LOG.infof("📧 [Notifications] USER_DELETED notification queued for %s", deletedUser.getEmail());
+        } catch (Exception e) {
+            LOG.error("❌ [Notifications] Failed to queue USER_DELETED notification (user deletion is NOT affected)", e);
         }
     }
 }

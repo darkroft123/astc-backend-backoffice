@@ -10,6 +10,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -75,6 +76,9 @@ public class S3StorageAdapter {
                     .endpointOverride(URI.create(effectivePublicEndpoint))
                     .region(Region.of(region))
                     .credentialsProvider(credentials)
+                    .serviceConfiguration(S3Configuration.builder()
+                            .pathStyleAccessEnabled(true)
+                            .build())
                     .build();
 
             log.info("S3 client initialized (internal endpoint). Presigner initialized (public endpoint)");
@@ -93,14 +97,14 @@ public class S3StorageAdapter {
 
             s3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
 
-            log.info("Bucket '{}' already exists", bucket);
+            log.info("Bucket '{}' already exists (Private)", bucket);
 
         } catch (NoSuchBucketException e) {
-            log.warn("Bucket '{}' not found. Creating...", bucket);
+            log.warn("Bucket '{}' not found. Creating private bucket...", bucket);
 
             s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
 
-            log.info("Bucket '{}' created successfully", bucket);
+            log.info("Private bucket '{}' created successfully", bucket);
         } catch (Exception e) {
             log.error("Error checking/creating bucket '{}'", bucket, e);
             throw e;
@@ -108,7 +112,8 @@ public class S3StorageAdapter {
     }
 
     public String upload(String folder, String originalFilename, InputStream data, long size, String contentType) {
-        String key = folder + "/" + UUID.randomUUID() + "_" + originalFilename;
+        String folderClean = folder.endsWith("/") ? folder.substring(0, folder.length() - 1) : folder;
+        String key = folderClean + "/" + originalFilename;
 
         log.info("Uploading file to S3 -> bucket={}, key={}, size={}, contentType={}",
                 bucket, key, size, contentType);
@@ -122,7 +127,7 @@ public class S3StorageAdapter {
                             .build(),
                     RequestBody.fromInputStream(data, size));
 
-            log.info("File uploaded successfully -> key={}", key);
+            log.info("File uploaded successfully to private storage -> key={}", key);
 
             return key;
 
@@ -146,25 +151,25 @@ public class S3StorageAdapter {
                 if (queryIdx >= 0) {
                     extractedKey = extractedKey.substring(0, queryIdx);
                 }
-                log.info("getPublicUrl: extracted key from old URL, re-signing -> key={}", extractedKey);
-                return generatePresignedUrl(extractedKey, 60);
+                log.info("getPublicUrl: extracted key from URL, re-signing -> key={}", extractedKey);
+                return generatePresignedUrl(extractedKey, 1440);
             }
-            log.info("getPublicUrl: key is an external URL, returning as-is -> {}", key);
             return key;
         }
 
         log.info("getPublicUrl: raw S3 key, generating presigned URL -> key={}", key);
-        return generatePresignedUrl(key, 60);
+        return generatePresignedUrl(key, 1440);
     }
 
     public String generatePresignedUrl(String key, int expiryMinutes) {
+        int safeExpiryMinutes = Math.min(Math.max(1, expiryMinutes), 10080);
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
                 .build();
 
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(expiryMinutes))
+                .signatureDuration(Duration.ofMinutes(safeExpiryMinutes))
                 .getObjectRequest(getObjectRequest)
                 .build();
 
@@ -172,7 +177,7 @@ public class S3StorageAdapter {
 
         url = normalizeMinioUrl(url);
 
-        log.info("Generated presigned URL -> key={}, expiryMinutes={}, url={}", key, expiryMinutes, url);
+        log.info("Generated presigned URL -> key={}, expiryMinutes={}, url={}", key, safeExpiryMinutes, url);
 
         return url;
     }
@@ -182,18 +187,31 @@ public class S3StorageAdapter {
             java.net.URI uri = new java.net.URI(url);
             String host = uri.getHost();
             if (host == null) return url;
+
+            String newPath = uri.getRawPath();
+            String actualHost = host;
             String expectedPrefix = bucket + ".";
             if (host.startsWith(expectedPrefix)) {
-                String actualHost = host.substring(expectedPrefix.length());
-                String newPath = "/" + bucket + uri.getRawPath();
-                StringBuilder sb = new StringBuilder();
-                sb.append(uri.getScheme()).append("://").append(actualHost);
-                if (uri.getPort() > 0) sb.append(":").append(uri.getPort());
-                sb.append(newPath);
-                if (uri.getRawQuery() != null) sb.append("?").append(uri.getRawQuery());
-                log.info("Normalized virtual-host-style URL: {} -> {}", url, sb);
-                return sb.toString();
+                actualHost = host.substring(expectedPrefix.length());
+                newPath = "/" + bucket + uri.getRawPath();
             }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append(uri.getScheme()).append("://").append(actualHost);
+            if (uri.getPort() > 0) sb.append(":").append(uri.getPort());
+            sb.append(newPath);
+            if (uri.getRawQuery() != null) sb.append("?").append(uri.getRawQuery());
+
+            String normalized = sb.toString();
+
+            if (publicEndpoint != null && !publicEndpoint.isBlank() && endpoint != null && !endpoint.isBlank()) {
+                String cleanEndpoint = endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
+                String cleanPublic = publicEndpoint.endsWith("/") ? publicEndpoint.substring(0, publicEndpoint.length() - 1) : publicEndpoint;
+                normalized = normalized.replace(cleanEndpoint, cleanPublic);
+            }
+
+            log.info("Normalized MinIO presigned URL: {} -> {}", url, normalized);
+            return normalized;
         } catch (Exception e) {
             log.warn("Error normalizing MinIO presigned URL: {}", e.getMessage());
         }

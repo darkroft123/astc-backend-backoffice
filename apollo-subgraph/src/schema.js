@@ -20,6 +20,7 @@ export const typeDefs = parse(/* GraphQL */ `
     registerDevice(userId: String, token: String, platform: String): Boolean
     readNotification(notificationId: String, userId: String): InAppNotification
     deleteNotification(notificationId: String, userId: String): Boolean
+    markAllNotificationsAsRead(userId: String): Boolean
   }
 
   # =========================

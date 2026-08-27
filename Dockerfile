@@ -1,9 +1,10 @@
 FROM maven:3.9.9-eclipse-temurin-21 AS builder
 WORKDIR /build
 COPY . .
-RUN --mount=type=cache,target=/root/.m2 echo "⏳ Compilando con Maven..."; \
+RUN set -e; \
+      echo "⏳ Compilando con Maven..."; \
       start=$(date +%s); \
-      mvn -o clean package -DskipTests -Dquarkus.package.jar.type=uber-jar || mvn clean package -DskipTests -Dquarkus.package.jar.type=uber-jar; \
+      mvn clean package -DskipTests -Dquarkus.package.jar.type=uber-jar -Daether.syncContext.named.factory=noop -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=120; \
       end=$(date +%s); \
       echo "⏱️ La compilación tardó $((end - start)) segundos."
 
@@ -12,5 +13,5 @@ WORKDIR /app
 COPY --from=builder /build/target/*-runner.jar app.jar
 EXPOSE 8082
 ENV TZ=UTC
-ENV JAVA_OPTS="-Duser.timezone=UTC -XX:+UseContainerSupport"
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENV JAVA_OPTS="-Duser.timezone=UTC -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+CMD ["java", "-jar", "app.jar"]

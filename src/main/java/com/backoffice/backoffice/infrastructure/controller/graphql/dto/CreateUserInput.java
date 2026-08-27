@@ -4,6 +4,7 @@ import org.eclipse.microprofile.graphql.Input;
 @Input("CreateUserInput")
 public class CreateUserInput {
 
+    private String id;
     private String username;
     private String email;
     private String password;
@@ -14,6 +15,9 @@ public class CreateUserInput {
     private String phone;
     private String roleId;
     private String avatarUrl;
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }

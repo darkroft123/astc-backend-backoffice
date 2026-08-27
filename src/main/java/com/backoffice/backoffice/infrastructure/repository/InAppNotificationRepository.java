@@ -37,6 +37,14 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
         }
     }
 
+    private static boolean toBoolean(Object val) {
+        if (val == null) return false;
+        if (val instanceof Boolean) return (Boolean) val;
+        if (val instanceof Number) return ((Number) val).intValue() != 0;
+        String s = val.toString().trim().toLowerCase();
+        return s.equals("true") || s.equals("t") || s.equals("1");
+    }
+
     @SuppressWarnings("unchecked")
     public Object[] findByUserIdWithCount(UUID userId, int page, int size) {
         long start = System.currentTimeMillis();
@@ -63,7 +71,7 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
             e.setTitle((String) row[2]);
             e.setBody((String) row[3]);
             e.setUserId(toUUID(row[4]));
-            e.setRead(row[5] != null && (Boolean) row[5]);
+            e.setRead(toBoolean(row[5]));
             e.setCreatedAt(toInstant(row[6]));
             e.setReadAt(toInstant(row[7]));
             items.add(e);
@@ -72,7 +80,21 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
     }
 
     public long countUnreadByUserId(UUID userId) {
-        return count("userId = ?1 AND read = false", userId);
+        Number count = (Number) getEntityManager().createNativeQuery(
+                "SELECT COUNT(*) FROM notification.in_app_notification WHERE user_id = :userId AND read = false")
+                .setParameter("userId", userId)
+                .getSingleResult();
+        return count.longValue();
+    }
+
+    public int markAllAsReadByUserId(UUID userId) {
+        return getEntityManager().createNativeQuery(
+                "UPDATE notification.in_app_notification " +
+                "SET read = true, read_at = :now " +
+                "WHERE user_id = :userId AND read = false")
+                .setParameter("now", java.sql.Timestamp.from(java.time.Instant.now()))
+                .setParameter("userId", userId)
+                .executeUpdate();
     }
 
     @SuppressWarnings("unchecked")
@@ -103,7 +125,7 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
             e.setTitle((String) row[2]);
             e.setBody((String) row[3]);
             e.setUserId(toUUID(row[4]));
-            e.setRead(row[5] != null && (Boolean) row[5]);
+            e.setRead(toBoolean(row[5]));
             e.setCreatedAt(toInstant(row[6]));
             e.setReadAt(toInstant(row[7]));
             items.add(e);
@@ -138,5 +160,15 @@ public class InAppNotificationRepository implements PanacheRepositoryBase<InAppN
         long duration = System.currentTimeMillis() - start;
         System.out.println("[PERF] countUnreadGroupedByCategory (Native) -> duration: " + duration + " ms");
         return results;
+    }
+
+    @jakarta.transaction.Transactional
+    public boolean deleteByIdAndUserId(UUID id, UUID userId) {
+        long deleted = getEntityManager().createNativeQuery(
+                "DELETE FROM notification.in_app_notification WHERE id = :id AND user_id = :userId")
+                .setParameter("id", id)
+                .setParameter("userId", userId)
+                .executeUpdate();
+        return deleted > 0;
     }
 }
