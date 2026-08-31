@@ -336,9 +336,16 @@ public class BackofficeGraphQLResource {
             String password = (input.getPassword() != null && !input.getPassword().isBlank())
                     ? input.getPassword() : "(oculta)";
 
+            String finalUsername = (response.getUsername() != null && !response.getUsername().isBlank())
+                    ? response.getUsername()
+                    : ((input.getUsername() != null && !input.getUsername().isBlank())
+                    ? input.getUsername()
+                    : (newUser != null && newUser.getUsername() != null ? newUser.getUsername() : ""));
+
             // 1. Credenciales al nuevo usuario
             JsonObject varsUser = new JsonObject()
-                    .put("USERNAME", response.getUsername())
+                    .put("USERNAME", finalUsername)
+                    .put("username", finalUsername)
                     .put("EMAIL", response.getEmail())
                     .put("PASSWORD", password)
                     .put("ROLE_NAME", roleDisplay);
@@ -346,15 +353,22 @@ public class BackofficeGraphQLResource {
 
             // 2. Aviso SOLO al admin que creo el usuario (nada de difusion masiva)
             int avisos = 0;
+            String creatorName = (creador != null && creador.getFullName() != null && !creador.getFullName().isBlank())
+                    ? creador.getFullName() : "Administrador";
+
             if (creador != null && creador.getEmail() != null && creador.getId() != null
                     && !creador.getEmail().equalsIgnoreCase(response.getEmail())) {
                 JsonObject varsAdmin = new JsonObject()
                         .put("NEW_USER_NAME", fullName)
+                        .put("NEW_USERNAME", finalUsername)
+                        .put("new_username", finalUsername)
+                        .put("username", finalUsername)
+                        .put("USERNAME", finalUsername)
                         .put("NEW_USER_EMAIL", response.getEmail())
                         .put("NEW_USER_ROLE", roleDisplay)
-                        .put("CREATED_BY", authContext.getEmail());
+                        .put("CREATED_BY", creatorName);
                 sendEmailNotification("ASB000102", "USER_CREATED", creador.getId().toString(), creador.getEmail(),
-                        creador.getFullName(), varsAdmin);
+                        creatorName, varsAdmin);
                 avisos = 1;
             }
 
@@ -400,10 +414,30 @@ public class BackofficeGraphQLResource {
 
             JsonObject vars = new JsonObject()
                     .put("USER_ID", editedUser.getId().toString())
+                    .put("USER_NAME", fullName)
                     .put("USER_EMAIL", editedUser.getEmail())
                     .put("ROLE_NAME", roleDisplay);
+
+            // 1. Notificar al usuario editado (Email + In-App)
             sendEmailNotification("ASB000002", "USER_UPDATED", editedUser.getId().toString(),
                     editedUser.getEmail(), fullName, vars);
+
+            // 2. Si el administrador que realizó la edición es diferente al usuario editado, notificarle también en In-App
+            UUID editorId = authContext.getUserId();
+            if (editorId != null && !editorId.toString().equals(editedUser.getId().toString())) {
+                List<UserOutput> allUsers = authClient.listUsers();
+                UserOutput editor = allUsers != null ? allUsers.stream().filter(u -> editorId.equals(u.getId())).findFirst().orElse(null) : null;
+                if (editor != null && editor.getEmail() != null) {
+                    String editorName = (editor.getFullName() != null && !editor.getFullName().isBlank()) ? editor.getFullName() : "Administrador";
+                    JsonObject varsAdmin = new JsonObject()
+                            .put("USER_ID", editedUser.getId().toString())
+                            .put("USER_NAME", fullName)
+                            .put("USER_EMAIL", editedUser.getEmail())
+                            .put("ROLE_NAME", roleDisplay);
+                    sendEmailNotification("ASB000002", "USER_UPDATED", editor.getId().toString(),
+                            editor.getEmail(), editorName, varsAdmin);
+                }
+            }
 
             LOG.infof("📧 [Notifications] USER_UPDATED notification queued for %s", editedUser.getEmail());
         } catch (Exception e) {
