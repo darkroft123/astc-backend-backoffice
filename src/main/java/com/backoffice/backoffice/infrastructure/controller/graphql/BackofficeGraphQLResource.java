@@ -45,6 +45,9 @@ public class BackofficeGraphQLResource {
     @Channel("notification-events")
     Emitter<String> notificationEmitter;
 
+    @org.eclipse.microprofile.config.inject.ConfigProperty(name = "app.frontend.url", defaultValue = "http://localhost:3000")
+    String frontendUrl;
+
     // =========================
     // CREATE USER
     // =========================
@@ -348,7 +351,8 @@ public class BackofficeGraphQLResource {
                     .put("username", finalUsername)
                     .put("EMAIL", response.getEmail())
                     .put("PASSWORD", password)
-                    .put("ROLE_NAME", roleDisplay);
+                    .put("ROLE_NAME", roleDisplay)
+                    .put("LINK", frontendUrl);
             sendEmailNotification("ASB000101", "USER_CREATED", response.getId(), response.getEmail(), fullName, varsUser);
 
             // 2. Aviso SOLO al admin que creo el usuario (nada de difusion masiva)
