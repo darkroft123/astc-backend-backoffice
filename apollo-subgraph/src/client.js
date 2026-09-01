@@ -40,10 +40,16 @@ export async function callBackoffice(query, variables = {}, token = '') {
     })
   });
 
-  const payload = await response.json();
+  const text = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error(`Respuesta no-JSON de backoffice (HTTP ${response.status}): ${text.slice(0, 200)}`);
+  }
 
   if (!response.ok) {
-    throw new Error(payload?.errors?.map((error) => error.message).join(' | ') || 'Error llamando a Project Assistance');
+    throw new Error(payload?.errors?.map((error) => error.message).join(' | ') || `Error HTTP ${response.status} llamando a backoffice`);
   }
 
   if (payload.errors?.length) {
