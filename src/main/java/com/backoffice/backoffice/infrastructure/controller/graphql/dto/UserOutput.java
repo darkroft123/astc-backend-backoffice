@@ -17,7 +17,6 @@ public class UserOutput {
     private String email;
     private String firstName;
     private String lastName;
-    private String fullName;
     private String phone;
     private String avatarUrl;
     private UUID roleId;
@@ -33,7 +32,6 @@ public class UserOutput {
         dto.setEmail(user.getEmail());
         dto.setFirstName(user.getFirstName());
         dto.setLastName(user.getLastName());
-        dto.setFullName(user.getFullName());
         dto.setPhone(user.getPhone());
         dto.setAvatarUrl(user.getAvatarUrl());
         dto.setRoleId(user.getRoleId());
@@ -82,11 +80,9 @@ public class UserOutput {
     }
 
     public String getFullName() {
-        return fullName;
-    }
-
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
+        String first = firstName != null ? firstName : "";
+        String last = lastName != null ? lastName : "";
+        return (first + " " + last).trim();
     }
 
     public String getPhone() {
