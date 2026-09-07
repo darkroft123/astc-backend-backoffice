@@ -331,9 +331,7 @@ public class BackofficeGraphQLResource {
                 }
             }
 
-            String fullName = (newUser != null && newUser.getFullName() != null && !newUser.getFullName().isBlank())
-                    ? newUser.getFullName()
-                    : ((input.getFirstName() + " " + input.getLastName()).trim());
+            String fullName = UserOutput.computeFullName(input.getFirstName(), input.getLastName());
             String roleDisplay = (newUser != null && newUser.getRoleName() != null) ? newUser.getRoleName()
                     : (newUser != null && newUser.getRoleCode() != null ? newUser.getRoleCode() : "usuario");
             String password = (input.getPassword() != null && !input.getPassword().isBlank())
@@ -357,8 +355,7 @@ public class BackofficeGraphQLResource {
 
             // 2. Aviso SOLO al admin que creo el usuario (nada de difusion masiva)
             int avisos = 0;
-            String creatorName = (creador != null && creador.getFullName() != null && !creador.getFullName().isBlank())
-                    ? creador.getFullName() : "Administrador";
+            String creatorName = UserOutput.computeFullName(creador.getFirstName(), creador.getLastName());
 
             if (creador != null && creador.getEmail() != null && creador.getId() != null
                     && !creador.getEmail().equalsIgnoreCase(response.getEmail())) {
@@ -410,9 +407,7 @@ public class BackofficeGraphQLResource {
                 return;
             }
 
-            String fullName = (editedUser.getFullName() != null && !editedUser.getFullName().isBlank())
-                    ? editedUser.getFullName()
-                    : ((input.getFirstName() != null ? input.getFirstName() : "") + " " + (input.getLastName() != null ? input.getLastName() : "")).trim();
+            String fullName = UserOutput.computeFullName(input.getFirstName(), input.getLastName());
             String roleDisplay = (editedUser.getRoleName() != null) ? editedUser.getRoleName()
                     : (editedUser.getRoleCode() != null ? editedUser.getRoleCode() : "usuario");
 
@@ -432,7 +427,7 @@ public class BackofficeGraphQLResource {
                 List<UserOutput> allUsers = authClient.listUsers();
                 UserOutput editor = allUsers != null ? allUsers.stream().filter(u -> editorId.equals(u.getId())).findFirst().orElse(null) : null;
                 if (editor != null && editor.getEmail() != null) {
-                    String editorName = (editor.getFullName() != null && !editor.getFullName().isBlank()) ? editor.getFullName() : "Administrador";
+                    String editorName = UserOutput.computeFullName(editor.getFirstName(), editor.getLastName());
                     JsonObject varsAdmin = new JsonObject()
                             .put("USER_ID", editedUser.getId().toString())
                             .put("USER_NAME", fullName)
@@ -460,8 +455,7 @@ public class BackofficeGraphQLResource {
                 return;
             }
 
-            String fullName = (deletedUser.getFullName() != null && !deletedUser.getFullName().isBlank())
-                    ? deletedUser.getFullName() : deletedUser.getUsername();
+            String fullName = UserOutput.computeFullName(deletedUser.getFirstName(), deletedUser.getLastName());
 
             JsonObject vars = new JsonObject()
                     .put("USER_ID", deletedUser.getId().toString())

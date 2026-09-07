@@ -12,6 +12,12 @@ import org.eclipse.microprofile.graphql.Type;
 
 public class UserOutput {
 
+    public static String computeFullName(String firstName, String lastName) {
+        String first = firstName != null ? firstName : "";
+        String last = lastName != null ? lastName : "";
+        return (first + " " + last).trim();
+    }
+
     private UUID id;
     private String username;
     private String email;
@@ -77,12 +83,6 @@ public class UserOutput {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
-    }
-
-    public String getFullName() {
-        String first = firstName != null ? firstName : "";
-        String last = lastName != null ? lastName : "";
-        return (first + " " + last).trim();
     }
 
     public String getPhone() {
