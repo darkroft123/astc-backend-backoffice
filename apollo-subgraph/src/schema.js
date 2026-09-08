@@ -32,6 +32,7 @@ export const typeDefs = parse(/* GraphQL */ `
     email: String @shareable
     firstName: String @shareable
     lastName: String @shareable
+    fullName: String @shareable
     phone: String @shareable
     roleId: String @shareable
     avatarUrl: String @shareable
