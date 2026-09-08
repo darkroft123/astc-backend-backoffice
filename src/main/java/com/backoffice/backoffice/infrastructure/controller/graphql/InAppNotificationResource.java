@@ -6,6 +6,7 @@ import com.backoffice.backoffice.domain.notification.InAppNotificationEntity;
 import com.backoffice.backoffice.infrastructure.controller.graphql.dto.InAppNotificationCategoryUnreadCountResponse;
 import com.backoffice.backoffice.infrastructure.controller.graphql.dto.InAppNotificationResponse;
 import com.backoffice.backoffice.infrastructure.controller.graphql.dto.PaginationResponse;
+import com.backoffice.backoffice.infrastructure.security.AuthContext;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
@@ -27,6 +28,9 @@ public class InAppNotificationResource {
     @Inject
     ReadNotificationUseCase readNotificationUseCase;
 
+    @Inject
+    AuthContext authContext;
+
     @Query("getallnotifications")
     @Description("Get notifications for a user with pagination")
     @Blocking
@@ -34,9 +38,13 @@ public class InAppNotificationResource {
             @Name("userId") String userId,
             @Name("page") @DefaultValue("1") int page,
             @Name("size") @DefaultValue("10") int size) {
-        LOG.infof("GraphQL Query GetAllNotifications: userId=%s, page=%d, size=%d", userId, page, size);
+        String effectiveUserId = userId;
+        if (effectiveUserId == null || effectiveUserId.isBlank()) {
+            try { effectiveUserId = authContext.getUserId().toString(); } catch (Exception e) { return new PaginationResponse(page, size, 0, new java.util.ArrayList<>()); }
+        }
+        LOG.infof("GraphQL Query GetAllNotifications: userId=%s, page=%d, size=%d", effectiveUserId, page, size);
         int internalPage = Math.max(page - 1, 0);
-        Object[] result = getNotificationsUseCase.getByUserId(UUID.fromString(userId), internalPage, size);
+        Object[] result = getNotificationsUseCase.getByUserId(UUID.fromString(effectiveUserId), internalPage, size);
         List<InAppNotificationEntity> items = (List<InAppNotificationEntity>) result[0];
         long total = (Long) result[1];
         return new PaginationResponse(page, size, total,
@@ -51,11 +59,20 @@ public class InAppNotificationResource {
     public Long getUnreadCount(
             @Name("userId") String userId,
             @Name("category") @DefaultValue("") String category) {
-        LOG.infof("GraphQL Query GetUnreadCount: userId=%s, category=%s", userId, category);
+        String effectiveUserId = userId;
+        if (effectiveUserId == null || effectiveUserId.isBlank()) {
+            try {
+                effectiveUserId = authContext.getUserId().toString();
+            } catch (Exception e) {
+                LOG.warnf("Could not extract userId from JWT: %s", e.getMessage());
+                return 0L;
+            }
+        }
+        LOG.infof("GraphQL Query GetUnreadCount: userId=%s, category=%s", effectiveUserId, category);
         if (category == null || category.isBlank()) {
-            return getNotificationsUseCase.countUnread(UUID.fromString(userId));
+            return getNotificationsUseCase.countUnread(UUID.fromString(effectiveUserId));
         } else {
-            return getNotificationsUseCase.countUnreadByCategory(UUID.fromString(userId), category);
+            return getNotificationsUseCase.countUnreadByCategory(UUID.fromString(effectiveUserId), category);
         }
     }
 
@@ -67,9 +84,13 @@ public class InAppNotificationResource {
             @Name("category") String category,
             @Name("page") @DefaultValue("1") int page,
             @Name("size") @DefaultValue("10") int size) {
-        LOG.infof("GraphQL Query GetNotificationsByCategory: userId=%s, category=%s, page=%d, size=%d", userId, category, page, size);
+        String effectiveUserId = userId;
+        if (effectiveUserId == null || effectiveUserId.isBlank()) {
+            try { effectiveUserId = authContext.getUserId().toString(); } catch (Exception e) { return new PaginationResponse(page, size, 0, new java.util.ArrayList<>()); }
+        }
+        LOG.infof("GraphQL Query GetNotificationsByCategory: userId=%s, category=%s, page=%d, size=%d", effectiveUserId, category, page, size);
         int internalPage = Math.max(page - 1, 0);
-        UUID userUUID = UUID.fromString(userId);
+        UUID userUUID = UUID.fromString(effectiveUserId);
         Object[] result = getNotificationsUseCase.findByUserIdAndCategory(userUUID, category, internalPage, size);
         List<InAppNotificationEntity> items = (List<InAppNotificationEntity>) result[0];
         long total = (Long) result[1];
