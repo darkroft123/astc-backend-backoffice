@@ -9,6 +9,7 @@ import com.backoffice.backoffice.infrastructure.controller.graphql.dto.Paginatio
 import com.backoffice.backoffice.infrastructure.security.AuthContext;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Uni;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.graphql.*;
 import org.jboss.logging.Logger;
@@ -34,6 +35,7 @@ public class InAppNotificationResource {
     @Query("getallnotifications")
     @Description("Get notifications for a user with pagination")
     @Blocking
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public PaginationResponse getNotifications(
             @Name("userId") String userId,
             @Name("page") @DefaultValue("1") int page,
@@ -56,6 +58,7 @@ public class InAppNotificationResource {
     @Query("getUnreadCount")
     @Description("Get count of unread notifications for a user, optionally filtered by category")
     @Blocking
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public Long getUnreadCount(
             @Name("userId") String userId,
             @Name("category") @DefaultValue("") String category) {
@@ -79,6 +82,7 @@ public class InAppNotificationResource {
     @Query("getNotificationsByCategory")
     @Description("Get notifications for a user filtered by category with pagination")
     @Blocking
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public PaginationResponse getNotificationsByCategory(
             @Name("userId") String userId,
             @Name("category") String category,
@@ -103,6 +107,7 @@ public class InAppNotificationResource {
     @Mutation("readNotification")
     @Description("Get notification detail and mark it as read if it was unread")
     @Blocking
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public InAppNotificationResponse readNotification(
             @Name("notificationId") String notificationId,
             @Name("userId") String userId) {
@@ -116,6 +121,7 @@ public class InAppNotificationResource {
     @Description("Delete a notification by id for a specific user")
     @Blocking
     @jakarta.transaction.Transactional
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public Boolean deleteNotification(
             @Name("notificationId") String notificationId,
             @Name("userId") String userId) {
@@ -137,6 +143,7 @@ public class InAppNotificationResource {
     @Description("Mark all unread notifications as read for a specific user")
     @Blocking
     @jakarta.transaction.Transactional
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public Boolean markAllNotificationsAsRead(@Name("userId") String userId) {
         LOG.infof("GraphQL Mutation MarkAllNotificationsAsRead: userId=%s", userId);
         try {
@@ -158,6 +165,7 @@ public class InAppNotificationResource {
     @Query("getUnreadCountByCategory")
     @Description("Get unread notification count for each category for a user")
     @Blocking
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public List<InAppNotificationCategoryUnreadCountResponse> getUnreadCountByCategory(
             @Name("userId") String userId) {
         LOG.infof("GraphQL Query GetUnreadCountByCategory: userId=%s", userId);
@@ -178,6 +186,7 @@ public class InAppNotificationResource {
     @Description("Register or update a user's device token for push notifications")
     @Blocking
     @jakarta.transaction.Transactional
+    @RolesAllowed({"ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"})
     public Boolean registerDevice(
             @Name("userId") String userId,
             @Name("token") String token,

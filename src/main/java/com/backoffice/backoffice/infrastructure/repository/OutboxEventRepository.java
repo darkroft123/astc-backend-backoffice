@@ -29,4 +29,12 @@ public class OutboxEventRepository implements PanacheRepositoryBase<OutboxEventE
         }
         return results;
     }
+
+    public void markPublishedBatch(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        getEntityManager().createNativeQuery(
+                "UPDATE outbox_events SET processed_at = NOW(), status = 'PUBLISHED', last_error = NULL WHERE id = ANY(?1)")
+                .setParameter(1, ids.toArray(new UUID[0]))
+                .executeUpdate();
+    }
 }

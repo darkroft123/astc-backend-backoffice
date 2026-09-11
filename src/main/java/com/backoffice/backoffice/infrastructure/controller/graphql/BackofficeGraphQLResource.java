@@ -218,6 +218,13 @@ public class BackofficeGraphQLResource {
 
         authContext.assertBackoffice();
 
+        UserOutput previousUser = null;
+        try {
+            previousUser = authClient.getUser(id);
+        } catch (Exception e) {
+            LOG.warnf("Could not fetch previous user state for ID %s before editing: %s", id, e.getMessage());
+        }
+
         String key = null;
         try {
             if (input.getAvatarUrl() != null && !input.getAvatarUrl().isBlank() && !input.getAvatarUrl().startsWith("http")) {
@@ -255,6 +262,15 @@ public class BackofficeGraphQLResource {
                 input.setAvatarUrl(presignedUrl);
             }
 
+            if (previousUser != null) {
+                if (input.getEmail() == null || input.getEmail().isBlank()) {
+                    input.setEmail(previousUser.getEmail());
+                }
+                if (input.getUsername() == null || input.getUsername().isBlank()) {
+                    input.setUsername(previousUser.getUsername());
+                }
+            }
+
             UserOutput response = authClient.editUser(id, input);
             if (response != null && response.getId() != null) {
                 JsonObject event = new JsonObject();
@@ -262,7 +278,7 @@ public class BackofficeGraphQLResource {
                 event.put("userId", response.getId().toString());
                 userEventsEmitter.send(event.encode());
                 LOG.infof("📢 [RabbitMQ] Broadcasted USER_UPDATED event for: %s", response.getId());
-                notifyUserEdited(response, input);
+                notifyUserEdited(response, input, previousUser);
             }
             return response;
         } catch (io.smallrye.graphql.client.GraphQLClientException e) {
@@ -355,10 +371,10 @@ public class BackofficeGraphQLResource {
 
             // 2. Aviso SOLO al admin que creo el usuario (nada de difusion masiva)
             int avisos = 0;
-            String creatorName = UserOutput.computeFullName(creador.getFirstName(), creador.getLastName());
 
             if (creador != null && creador.getEmail() != null && creador.getId() != null
                     && !creador.getEmail().equalsIgnoreCase(response.getEmail())) {
+                String creatorName = UserOutput.computeFullName(creador.getFirstName(), creador.getLastName());
                 JsonObject varsAdmin = new JsonObject()
                         .put("NEW_USER_NAME", fullName)
                         .put("NEW_USERNAME", finalUsername)
@@ -400,22 +416,33 @@ public class BackofficeGraphQLResource {
     // NOTIFICACIONES AL EDITAR USUARIO
     // =========================
 
-    private void notifyUserEdited(UserOutput editedUser, EditUserInput input) {
+    private void notifyUserEdited(UserOutput editedUser, EditUserInput input, UserOutput previousUser) {
         try {
             if (editedUser == null || editedUser.getEmail() == null) {
                 LOG.warn("📧 [Notifications] Cannot send USER_UPDATED: no user or email");
                 return;
             }
 
-            String fullName = UserOutput.computeFullName(input.getFirstName(), input.getLastName());
+            String fullName = UserOutput.computeFullName(
+                editedUser.getFirstName() != null ? editedUser.getFirstName() : input.getFirstName(),
+                editedUser.getLastName() != null ? editedUser.getLastName() : input.getLastName()
+            );
+            if (fullName.isBlank()) {
+                fullName = editedUser.getUsername() != null ? editedUser.getUsername() : editedUser.getEmail();
+            }
+
             String roleDisplay = (editedUser.getRoleName() != null) ? editedUser.getRoleName()
                     : (editedUser.getRoleCode() != null ? editedUser.getRoleCode() : "usuario");
+
+            String changesHtml = buildChangesHtml(previousUser, editedUser, input);
 
             JsonObject vars = new JsonObject()
                     .put("USER_ID", editedUser.getId().toString())
                     .put("USER_NAME", fullName)
                     .put("USER_EMAIL", editedUser.getEmail())
-                    .put("ROLE_NAME", roleDisplay);
+                    .put("ROLE_NAME", roleDisplay)
+                    .put("CHANGES_HTML", changesHtml)
+                    .put("changes_html", changesHtml);
 
             // 1. Notificar al usuario editado (Email + In-App)
             sendEmailNotification("ASB000002", "USER_UPDATED", editedUser.getId().toString(),
@@ -432,7 +459,9 @@ public class BackofficeGraphQLResource {
                             .put("USER_ID", editedUser.getId().toString())
                             .put("USER_NAME", fullName)
                             .put("USER_EMAIL", editedUser.getEmail())
-                            .put("ROLE_NAME", roleDisplay);
+                            .put("ROLE_NAME", roleDisplay)
+                            .put("CHANGES_HTML", changesHtml)
+                            .put("changes_html", changesHtml);
                     sendEmailNotification("ASB000002", "USER_UPDATED", editor.getId().toString(),
                             editor.getEmail(), editorName, varsAdmin);
                 }
@@ -442,6 +471,100 @@ public class BackofficeGraphQLResource {
         } catch (Exception e) {
             LOG.error("❌ [Notifications] Failed to queue USER_UPDATED notification (user edit is NOT affected)", e);
         }
+    }
+
+    private String buildChangesHtml(UserOutput previousUser, UserOutput editedUser, EditUserInput input) {
+        StringBuilder html = new StringBuilder();
+        html.append("<table style=\"border-collapse:collapse;margin:16px 0;width:100%;font-size:14px;border:1px solid #e2e8f0;\">");
+        html.append("<thead><tr style=\"background:#f0f4f8;text-align:left;\">");
+        html.append("<th style=\"padding:8px 12px;border:1px solid #e2e8f0;\">Campo</th>");
+        html.append("<th style=\"padding:8px 12px;border:1px solid #e2e8f0;\">Valor Anterior</th>");
+        html.append("<th style=\"padding:8px 12px;border:1px solid #e2e8f0;\">Nuevo Valor</th>");
+        html.append("</tr></thead><tbody>");
+
+        int changesCount = 0;
+
+        // 1. Username
+        if (input.getUsername() != null && !input.getUsername().isBlank()
+                && (previousUser == null || !input.getUsername().equals(previousUser.getUsername()))) {
+            String oldVal = (previousUser != null && previousUser.getUsername() != null) ? "@" + previousUser.getUsername() : "-";
+            appendTableRow(html, "Usuario", oldVal, "@" + input.getUsername());
+            changesCount++;
+        }
+
+        // 2. Email
+        if (input.getEmail() != null && !input.getEmail().isBlank()
+                && (previousUser == null || !input.getEmail().equals(previousUser.getEmail()))) {
+            String oldVal = (previousUser != null && previousUser.getEmail() != null) ? previousUser.getEmail() : "-";
+            appendTableRow(html, "Correo electrónico", oldVal, input.getEmail());
+            changesCount++;
+        }
+
+        // 3. Name (FirstName / LastName)
+        String oldFirstName = previousUser != null ? previousUser.getFirstName() : null;
+        String oldLastName = previousUser != null ? previousUser.getLastName() : null;
+        String newFirstName = input.getFirstName() != null ? input.getFirstName() : oldFirstName;
+        String newLastName = input.getLastName() != null ? input.getLastName() : oldLastName;
+
+        if ((input.getFirstName() != null && (oldFirstName == null || !input.getFirstName().equals(oldFirstName)))
+                || (input.getLastName() != null && (oldLastName == null || !input.getLastName().equals(oldLastName)))) {
+            String oldName = UserOutput.computeFullName(oldFirstName, oldLastName);
+            String newName = UserOutput.computeFullName(newFirstName, newLastName);
+            appendTableRow(html, "Nombre completo", oldName.isBlank() ? "-" : oldName, newName.isBlank() ? "-" : newName);
+            changesCount++;
+        }
+
+        // 4. Phone
+        if (input.getPhone() != null
+                && (previousUser == null || !input.getPhone().equals(previousUser.getPhone()))) {
+            String oldVal = (previousUser != null && previousUser.getPhone() != null && !previousUser.getPhone().isBlank()) ? previousUser.getPhone() : "-";
+            String newVal = (!input.getPhone().isBlank()) ? input.getPhone() : "-";
+            appendTableRow(html, "Teléfono", oldVal, newVal);
+            changesCount++;
+        }
+
+        // 5. Role
+        if (input.getRoleId() != null && !input.getRoleId().isBlank() && previousUser != null && editedUser != null) {
+            String oldRole = previousUser.getRoleName() != null ? previousUser.getRoleName() : (previousUser.getRoleCode() != null ? previousUser.getRoleCode() : "");
+            String newRole = editedUser.getRoleName() != null ? editedUser.getRoleName() : (editedUser.getRoleCode() != null ? editedUser.getRoleCode() : "");
+            if (!oldRole.isBlank() && !newRole.isBlank() && !oldRole.equalsIgnoreCase(newRole)) {
+                appendTableRow(html, "Rol", oldRole, newRole);
+                changesCount++;
+            }
+        }
+
+        // 6. Password
+        if (input.getPassword() != null && !input.getPassword().isBlank()) {
+            appendTableRow(html, "Contraseña", "••••••••", "Contraseña actualizada");
+            changesCount++;
+        }
+
+        // 7. Avatar
+        if (input.getAvatarUrl() != null && !input.getAvatarUrl().isBlank()) {
+            appendTableRow(html, "Foto de perfil", "Foto previa", "Nueva foto cargada");
+            changesCount++;
+        }
+
+        html.append("</tbody></table>");
+
+        if (changesCount == 0) {
+            return "<p><em>Se actualizaron los datos del usuario.</em></p>";
+        }
+
+        return html.toString();
+    }
+
+    private void appendTableRow(StringBuilder html, String field, String oldValue, String newValue) {
+        html.append("<tr>")
+            .append("<td style=\"padding:8px 12px;border:1px solid #e2e8f0;font-weight:bold;\">").append(escapeHtml(field)).append("</td>")
+            .append("<td style=\"padding:8px 12px;border:1px solid #e2e8f0;color:#64748b;\">").append(escapeHtml(oldValue)).append("</td>")
+            .append("<td style=\"padding:8px 12px;border:1px solid #e2e8f0;color:#0f172a;font-weight:bold;\">").append(escapeHtml(newValue)).append("</td>")
+            .append("</tr>");
+    }
+
+    private String escapeHtml(String val) {
+        if (val == null) return "";
+        return val.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     // =========================

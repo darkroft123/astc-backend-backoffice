@@ -117,8 +117,7 @@ public class OutboxEventProcessor {
         }
 
         if (!successfulIds.isEmpty()) {
-            repository.update("processedAt = ?1, status = 'PUBLISHED', lastError = null WHERE id IN (?2)",
-                    LocalDateTime.now(), successfulIds);
+            repository.markPublishedBatch(successfulIds);
         }
     }
 

@@ -104,7 +104,6 @@ public class AuthClientLogger {
 
         return "username=" + i.getUsername()
                 + ", email=" + i.getEmail()
-                + ", password=" + i.getPassword()
                 + ", roleId=" + i.getRoleId();
     }
 }
