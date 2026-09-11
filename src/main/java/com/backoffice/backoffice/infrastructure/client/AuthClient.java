@@ -17,7 +17,7 @@ public interface AuthClient {
     // MUTATIONS (ESCRITURA)
     // =====================
     @Mutation
-    CreateUserResponse createUser(CreateUserInput input);
+    CreateUserResponse createUser(@Name("input") CreateUserInput input);
 
     @Mutation
     UserOutput editUser(

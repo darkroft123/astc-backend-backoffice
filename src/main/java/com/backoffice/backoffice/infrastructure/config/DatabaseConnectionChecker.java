@@ -23,7 +23,7 @@ public class DatabaseConnectionChecker {
             if (isValid) {
                 LOG.info("[DB PERF] Conectado exitosamente a la Base de Datos (Supabase/PostgreSQL) en " + time + " ms.");
             } else {
-                LOG.warn("[DB] La conexion a la base de datos no es valida.");
+                LOG.warn("[DB] La conexi\u00f3n a la base de datos no es v\u00e1lida.");
             }
         } catch (Exception e) {
             LOG.error("[DB] Error al conectar con la base de datos durante el arranque: " + e.getMessage());

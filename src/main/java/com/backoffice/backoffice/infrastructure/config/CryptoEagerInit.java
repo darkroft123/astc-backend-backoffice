@@ -14,7 +14,7 @@ public class CryptoEagerInit {
     void onStart(@Observes StartupEvent ev, Vertx vertx) {
         vertx.executeBlocking(promise -> {
             try {
-                LOG.info("Inicializando proveedores criptograficos (jose4j/SunPKCS11) para evitar bloqueos en el Event Loop...");
+                LOG.info("Inicializando proveedores criptogr\u00e1ficos (jose4j/SunPKCS11) para evitar bloqueos en el Event Loop...");
                 AlgorithmFactoryFactory.getInstance();
                 java.security.Security.getProviders();
                 
@@ -44,10 +44,10 @@ public class CryptoEagerInit {
                     // ignore if graphql is not in classpath
                 }
                 
-                LOG.info("Inicializacion criptografica completada.");
+                LOG.info("Inicializaci\u00f3n criptogr\u00e1fica completada.");
                 promise.complete();
             } catch(Exception e) {
-                LOG.warn("Error durante el warmup criptografico", e);
+                LOG.warn("Error durante el warmup criptogr\u00e1fico", e);
                 promise.complete();
             }
         }, false);
