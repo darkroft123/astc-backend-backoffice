@@ -3,3 +3,10 @@ target/*
 .idea/
 *.iml
 .git/
+.gitignore
+*.md
+docs/
+src/test/
+.mvn/
+*.sh
+node_modules/
