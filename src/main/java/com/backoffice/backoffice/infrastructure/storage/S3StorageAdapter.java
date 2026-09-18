@@ -222,16 +222,33 @@ public class S3StorageAdapter {
         return bucket;
     }
 
-    public void delete(String key) {
-        log.info("Deleting file from S3 -> bucket={}, key={}", bucket, key);
+    public void delete(String keyOrUrl) {
+        if (keyOrUrl == null || keyOrUrl.isBlank()) {
+            return;
+        }
+
+        String rawKey = keyOrUrl;
+        if (keyOrUrl.startsWith("http://") || keyOrUrl.startsWith("https://")) {
+            String bucketPath = "/" + bucket + "/";
+            int idx = keyOrUrl.indexOf(bucketPath);
+            if (idx >= 0) {
+                rawKey = keyOrUrl.substring(idx + bucketPath.length());
+                int queryIdx = rawKey.indexOf('?');
+                if (queryIdx >= 0) {
+                    rawKey = rawKey.substring(0, queryIdx);
+                }
+            }
+        }
+
+        log.info("Deleting file from S3 -> bucket={}, key={}", bucket, rawKey);
         try {
             s3Client.deleteObject(DeleteObjectRequest.builder()
                     .bucket(bucket)
-                    .key(key)
+                    .key(rawKey)
                     .build());
-            log.info("File deleted successfully from S3 -> key={}", key);
+            log.info("File deleted successfully from S3 -> key={}", rawKey);
         } catch (Exception e) {
-            log.error("Error deleting file from S3 -> key={}", key, e);
+            log.error("Error deleting file from S3 -> key={}", rawKey, e);
         }
     }
 }

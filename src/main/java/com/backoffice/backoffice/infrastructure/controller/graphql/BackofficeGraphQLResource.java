@@ -316,6 +316,10 @@ public class BackofficeGraphQLResource {
 
         Boolean response = authClient.deleteUser(id);
         if (response != null && response) {
+            if (userToDelete != null && userToDelete.getAvatarUrl() != null && !userToDelete.getAvatarUrl().isBlank()) {
+                LOG.infof("🗑️ [MinIO] Deleting avatar for user %s: %s", id, userToDelete.getAvatarUrl());
+                s3StorageAdapter.delete(userToDelete.getAvatarUrl());
+            }
             JsonObject event = new JsonObject();
             event.put("eventType", "USER_DELETED");
             event.put("userId", id);
