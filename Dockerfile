@@ -2,9 +2,10 @@ FROM maven:3.9.9-eclipse-temurin-21 AS builder
 WORKDIR /build
 COPY . .
 RUN --mount=type=cache,target=/root/.m2 set -e; \
+      find /root/.m2 -name "*.lastUpdated" -delete; \
       echo "⏳ Compilando con Maven..."; \
       start=$(date +%s); \
-      mvn clean package -T 1C -DskipTests -Dquarkus.package.jar.type=uber-jar -Daether.syncContext.named.factory=noop -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=120; \
+      mvn clean package -T 1C -DskipTests -Dquarkus.package.jar.type=uber-jar -Daether.syncContext.named.factory=noop -Dmaven.wagon.http.retryHandler.count=10; \
       end=$(date +%s); \
       echo "⏱️ La compilación tardó $((end - start)) segundos."
 
