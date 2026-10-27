@@ -496,13 +496,22 @@ public class BackofficeGraphQLResource {
     private String translateRole(String role) {
         if (role == null || role.isBlank()) return "-";
         switch (role.trim().toUpperCase()) {
-            case "SUPER_ADMIN": return "Super Administrador";
-            case "ADMIN": return "Administrador";
-            case "PROJECT_MANAGER": return "Jefe de Proyecto";
-            case "LEAD": return "Líder Técnico";
-            case "DEVELOPER": return "Desarrollador";
-            case "TEAM_MEMBER": return "Miembro del Equipo";
-            default: return role;
+            case "SUPER_ADMIN":
+            case "ADMIN":
+            case "ADMINISTRATOR":
+                return "Admin";
+            case "PROJECT_MANAGER":
+            case "PROJECT MANAGER":
+            case "MANAGER":
+            case "LEAD":
+                return "Jefe de Proyecto";
+            case "TEAM_MEMBER":
+            case "TEAM MEMBER":
+            case "DEVELOPER":
+            case "MEMBER":
+            case "USER":
+            default:
+                return "Trabajador";
         }
     }
 

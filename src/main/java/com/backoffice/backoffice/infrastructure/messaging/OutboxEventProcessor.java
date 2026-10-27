@@ -107,7 +107,7 @@ public class OutboxEventProcessor {
                     variables.put("roleName", translatedRole);
                     variables.put("NEW_USER_ROLE", translatedRole);
                 } else {
-                    variables.put("ROLE_NAME", "Miembro del Equipo");
+                    variables.put("ROLE_NAME", "Trabajador");
                 }
 
                 String toEmail = payload.getString("email", "dev-notification@astc.local");
@@ -171,16 +171,24 @@ public class OutboxEventProcessor {
     }
 
     private static String translateRole(String role) {
-        if (role == null || role.isBlank()) return "Miembro del Equipo";
+        if (role == null || role.isBlank()) return "Trabajador";
         switch (role.trim().toUpperCase()) {
-            case "SUPER_ADMIN": return "Super Administrador";
-            case "ADMIN": return "Administrador";
-            case "PROJECT_MANAGER": return "Jefe de Proyecto";
-            case "LEAD": return "Líder Técnico";
-            case "DEVELOPER": return "Desarrollador";
-            case "TEAM_MEMBER": return "Miembro del Equipo";
-            case "MEMBER": return "Miembro";
-            default: return role;
+            case "SUPER_ADMIN":
+            case "ADMIN":
+            case "ADMINISTRATOR":
+                return "Admin";
+            case "PROJECT_MANAGER":
+            case "PROJECT MANAGER":
+            case "MANAGER":
+            case "LEAD":
+                return "Jefe de Proyecto";
+            case "TEAM_MEMBER":
+            case "TEAM MEMBER":
+            case "DEVELOPER":
+            case "MEMBER":
+            case "USER":
+            default:
+                return "Trabajador";
         }
     }
 }
