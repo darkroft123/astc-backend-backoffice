@@ -364,13 +364,29 @@ public class BackofficeGraphQLResource {
                     : (newUser != null && newUser.getUsername() != null ? newUser.getUsername() : ""));
 
             // 1. Credenciales al nuevo usuario
+            String loginUrl = "https://astc-joyit.io";
+            if ("ADMIN".equalsIgnoreCase(input.getRoleId()) || "SUPER_ADMIN".equalsIgnoreCase(input.getRoleId())) {
+                loginUrl = "https://astc-backoffice.joyit.io";
+            } else if ("PROJECT_MANAGER".equalsIgnoreCase(input.getRoleId())) {
+                loginUrl = "https://astc-project.joyit.io";
+            } else if (frontendUrl != null && !frontendUrl.isBlank()) {
+                loginUrl = frontendUrl;
+            }
+            String hostName = "astc-joyit.io";
+            try {
+                java.net.URI uri = java.net.URI.create(loginUrl);
+                if (uri.getHost() != null) hostName = uri.getHost();
+            } catch (Exception ignored) {}
+
             JsonObject varsUser = new JsonObject()
                     .put("USERNAME", finalUsername)
                     .put("username", finalUsername)
                     .put("EMAIL", response.getEmail())
                     .put("PASSWORD", password)
-                    .put("ROLE_NAME", roleDisplay)
-                    .put("LINK", frontendUrl);
+                    .put("ROLE_NAME", translateRole(roleDisplay))
+                    .put("LINK", loginUrl)
+                    .put("HOSTNAME", hostName)
+                    .put("LINK_HOSTNAME", hostName);
             sendEmailNotification("ASB000101", "USER_CREATED", response.getId(), response.getEmail(), fullName, varsUser);
 
             // 2. Aviso SOLO al admin que creo el usuario (nada de difusion masiva)
@@ -477,9 +493,23 @@ public class BackofficeGraphQLResource {
         }
     }
 
+    private String translateRole(String role) {
+        if (role == null || role.isBlank()) return "-";
+        switch (role.trim().toUpperCase()) {
+            case "SUPER_ADMIN": return "Super Administrador";
+            case "ADMIN": return "Administrador";
+            case "PROJECT_MANAGER": return "Jefe de Proyecto";
+            case "LEAD": return "Líder Técnico";
+            case "DEVELOPER": return "Desarrollador";
+            case "TEAM_MEMBER": return "Miembro del Equipo";
+            default: return role;
+        }
+    }
+
     private String buildChangesHtml(UserOutput previousUser, UserOutput editedUser, EditUserInput input) {
         StringBuilder html = new StringBuilder();
-        html.append("<table style=\"border-collapse:collapse;margin:16px 0;width:100%;font-size:14px;border:1px solid #e2e8f0;\">");
+        html.append("<div class=\"table-responsive\" style=\"width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:16px 0;\">");
+        html.append("<table style=\"border-collapse:collapse;width:100%;max-width:100%;font-size:14px;border:1px solid #e2e8f0;table-layout:auto;\">");
         html.append("<thead><tr style=\"background:#f0f4f8;text-align:left;\">");
         html.append("<th style=\"padding:8px 12px;border:1px solid #e2e8f0;\">Campo</th>");
         html.append("<th style=\"padding:8px 12px;border:1px solid #e2e8f0;\">Valor Anterior</th>");
@@ -532,7 +562,7 @@ public class BackofficeGraphQLResource {
             String oldRole = previousUser.getRoleName() != null ? previousUser.getRoleName() : (previousUser.getRoleCode() != null ? previousUser.getRoleCode() : "");
             String newRole = editedUser.getRoleName() != null ? editedUser.getRoleName() : (editedUser.getRoleCode() != null ? editedUser.getRoleCode() : "");
             if (!oldRole.isBlank() && !newRole.isBlank() && !oldRole.equalsIgnoreCase(newRole)) {
-                appendTableRow(html, "Rol", oldRole, newRole);
+                appendTableRow(html, "Rol", translateRole(oldRole), translateRole(newRole));
                 changesCount++;
             }
         }
@@ -549,7 +579,7 @@ public class BackofficeGraphQLResource {
             changesCount++;
         }
 
-        html.append("</tbody></table>");
+        html.append("</tbody></table></div>");
 
         if (changesCount == 0) {
             return "<p><em>Se actualizaron los datos del usuario.</em></p>";
