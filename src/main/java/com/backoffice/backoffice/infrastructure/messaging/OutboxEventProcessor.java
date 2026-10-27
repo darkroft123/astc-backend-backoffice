@@ -88,8 +88,26 @@ public class OutboxEventProcessor {
                 if (payload.containsKey("email")) {
                     variables.put("USER_EMAIL", payload.getString("email"));
                 }
-                if (payload.containsKey("role")) {
-                    variables.put("ROLE_NAME", payload.getString("role"));
+                String username = payload.getString("username", "");
+                if (!username.isBlank()) {
+                    variables.put("USER_NAME", username);
+                    variables.put("USERNAME", username);
+                }
+
+                String rawRole = null;
+                if (payload.containsKey("role")) rawRole = payload.getString("role");
+                else if (payload.containsKey("newRole")) rawRole = payload.getString("newRole");
+                else if (payload.containsKey("roleName")) rawRole = payload.getString("roleName");
+                else if (payload.containsKey("memberRole")) rawRole = payload.getString("memberRole");
+
+                if (rawRole != null && !rawRole.isBlank()) {
+                    String translatedRole = translateRole(rawRole);
+                    variables.put("ROLE_NAME", translatedRole);
+                    variables.put("role", translatedRole);
+                    variables.put("roleName", translatedRole);
+                    variables.put("NEW_USER_ROLE", translatedRole);
+                } else {
+                    variables.put("ROLE_NAME", "Miembro del Equipo");
                 }
 
                 String toEmail = payload.getString("email", "dev-notification@astc.local");
@@ -149,6 +167,20 @@ public class OutboxEventProcessor {
                 return "ASB000004";
             default:
                 return null;
+        }
+    }
+
+    private static String translateRole(String role) {
+        if (role == null || role.isBlank()) return "Miembro del Equipo";
+        switch (role.trim().toUpperCase()) {
+            case "SUPER_ADMIN": return "Super Administrador";
+            case "ADMIN": return "Administrador";
+            case "PROJECT_MANAGER": return "Jefe de Proyecto";
+            case "LEAD": return "Líder Técnico";
+            case "DEVELOPER": return "Desarrollador";
+            case "TEAM_MEMBER": return "Miembro del Equipo";
+            case "MEMBER": return "Miembro";
+            default: return role;
         }
     }
 }

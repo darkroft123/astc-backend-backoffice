@@ -402,7 +402,7 @@ public class BackofficeGraphQLResource {
                         .put("username", finalUsername)
                         .put("USERNAME", finalUsername)
                         .put("NEW_USER_EMAIL", response.getEmail())
-                        .put("NEW_USER_ROLE", roleDisplay)
+                        .put("NEW_USER_ROLE", translateRole(roleDisplay))
                         .put("CREATED_BY", creatorName);
                 sendEmailNotification("ASB000102", "USER_CREATED", creador.getId().toString(), creador.getEmail(),
                         creatorName, varsAdmin);
