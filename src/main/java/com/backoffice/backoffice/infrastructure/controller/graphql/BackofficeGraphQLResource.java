@@ -364,7 +364,7 @@ public class BackofficeGraphQLResource {
                     : (newUser != null && newUser.getUsername() != null ? newUser.getUsername() : ""));
 
             // 1. Credenciales al nuevo usuario
-            String loginUrl = "https://astc-joyit.io";
+            String loginUrl = "https://astc-auth.joyit.io";
             if ("ADMIN".equalsIgnoreCase(input.getRoleId()) || "SUPER_ADMIN".equalsIgnoreCase(input.getRoleId())) {
                 loginUrl = "https://astc-backoffice.joyit.io";
             } else if ("PROJECT_MANAGER".equalsIgnoreCase(input.getRoleId())) {
@@ -372,7 +372,7 @@ public class BackofficeGraphQLResource {
             } else if (frontendUrl != null && !frontendUrl.isBlank()) {
                 loginUrl = frontendUrl;
             }
-            String hostName = "astc-joyit.io";
+            String hostName = "astc-auth.joyit.io";
             try {
                 java.net.URI uri = java.net.URI.create(loginUrl);
                 if (uri.getHost() != null) hostName = uri.getHost();
